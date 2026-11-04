@@ -81,3 +81,101 @@ regression tests to `tests/test_gradients.py`; suite went from 46 → 48 passed,
 **Result.** `docs/SCALAR_ENGINE_AUDIT.md` delivered; verdict PASS — proceed to
 NumPy vectorization (Phase 1b) with parity tests against this scalar baseline.
 Do not proceed to website integration yet.
+
+---
+
+## 2026-11-04 — Phase 1b: NumPy vectorization
+
+**Question.** Can a NumPy-vectorized engine reproduce the audited scalar engine's
+forward propagation, loss values, gradients, optimizer updates, and training
+results, and is it faster?
+
+**Implementation.** New separated package `nn_numpy/` (scalar `nn/` left
+untouched):
+
+* `activations.py` — vectorized sigmoid/tanh/ReLU/identity/softmax + derivatives
+* `layers.py` — `Parameter`, `DenseLayer` with `Z = X @ W + b`, batched backprop
+* `model.py` — `MLP` (forward/backward/predict_proba), 1D or 2D input
+* `losses.py` — MSE, BCE-with-logits, BCE (mean-batch gradients)
+* `optimizers.py` — SGD, Momentum, Adam (same semantics as scalar)
+* `training.py` — mini-batch train loop, `History`
+* `serialization.py` — JSON checkpoints (`format_version: 2`, engine `numpy`)
+
+**Key contract detail.** The NumPy loss returns `d(mean_batch_L)/d(prediction)`
+(already averaged over the batch), so `DenseLayer.backward` computes
+`dL/dW = X.T @ delta` and `dL/db = sum(delta, axis=0)` with NO additional batch
+division. This matches the scalar engine, which divides each per-sample
+gradient by the batch size before backward. (An early draft divided twice and
+produced gradients 1/B too small; caught by the parity tests.)
+
+**Parity results.** `tests/test_numpy_parity.py` + `tests/test_numpy_engine.py`:
+84 tests, all passing, covering 5 architectures × 2 losses × 3 optimizers for
+forward outputs, loss values, per-parameter gradients, optimizer updates, and
+25-epoch training results, plus unit tests for activations/losses/optimizers/
+serialization/training. Full suite: 130 passed, 0 failed (46 scalar + 84 numpy).
+
+**Benchmark.** `benchmarks/benchmark_numpy.py` times one Adam step (forward +
+backward) over a batch, 20 repeats, wall-clock:
+
+| Architecture | Batch | Scalar (s) | NumPy (s) | Speedup |
+|---|---|---|---|---|
+| 2x4x1 | 16 | 0.0067 | 0.0028 | 2.40x |
+| 2x4x1 | 256 | 0.0596 | 0.0054 | 11.01x |
+| 10x32x16x1 | 64 | 0.2826 | 0.0032 | 87.80x |
+| 10x32x16x1 | 1024 | 5.0732 | 0.0399 | 127.21x |
+| 20x64x32x1 | 256 | 5.6844 | 0.0588 | 96.60x |
+| 20x64x32x1 | 2048 | 41.8011 | 0.1886 | 221.63x |
+
+NumPy is dramatically faster as batch size and layer width grow (batched
+matmuls vs Python per-sample loops). For tiny problems the advantage is small
+because fixed Python/NumPy overhead dominates — an honest, measured limitation,
+not a claim.
+
+**Documentation.** `docs/NUMPY_ENGINE.md` explains array shapes, dimensions,
+matrix operations, the backward derivation, loss contracts, optimizer semantics,
+checkpoint format differences, and reproducibility.
+
+**Caveat documented.** Same seed does not produce byte-identical initialization
+across the two engines (Python `random.Random` vs NumPy `RandomState`),
+so parity tests copy scalar parameter values into the NumPy model. This is
+intentional and documented.
+
+**Verdict.** PASS — the NumPy engine is parity-correct with the scalar reference
+and measurably faster. Ready for the scalar engine to remain as the audited
+reference while the NumPy engine becomes the default numerical kernel. Do not
+proceed to Phase 2 without approval.
+
+
+---
+
+## 2026-11-04 — Phase 0: Scalar engine audit
+
+**Question.** Is the existing scalar neural-network engine mathematically correct,
+genuinely from scratch, and safe to vectorize with NumPy?
+
+**Method.** Independent re-derivation (not reliance on the test suite) of every
+neuron/layer/loss/backprop/optimizer equation, followed by an adversarial
+numeric check of every analytic gradient against central finite differences.
+
+**Finding.** No critical defects. The engine is correct and from-scratch:
+stdlib `math`/`random`/`json` only; no PyTorch/TensorFlow/Keras/JAX/autograd.
+Per-parameter analytic-vs-numeric gradient agreement holds for MSE and
+BinaryCrossEntropyWithLogits across all 29 parameters of a `[3,4,2,1]` tanh
+network (58 assertions), and for all 13 parameters of a `[2,3,1]` ReLU network
+evaluated away from the kink.
+
+**Two Important risks documented and regression-tested:**
+1. `ReLU.derivative(0.0)` returns subgradient 0 — central differences at exactly
+   `z=0` legitimately disagree; gradient check uses tanh, ReLU covered away from
+   the kink.
+2. `BinaryCrossEntropy` gradient is dL/dp (probability), not dL/dz — contract
+   locked with a numeric test; `BinaryCrossEntropyWithLogits` remains the
+   logit-output loss.
+
+**Corrections.** No engine code changed (nothing was incorrect). Added two
+regression tests to `tests/test_gradients.py`; suite went from 46 → 48 passed,
+0 failed.
+
+**Result.** `docs/SCALAR_ENGINE_AUDIT.md` delivered; verdict PASS — proceed to
+NumPy vectorization (Phase 1b) with parity tests against this scalar baseline.
+Do not proceed to website integration yet.
