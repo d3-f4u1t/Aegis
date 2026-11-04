@@ -1,0 +1,5 @@
+# Runtime dependencies: none.
+#
+# The Phase 1 engine uses only the Python standard library (math, random, json).
+# NumPy will be introduced with the array implementation (Phase 1b), after the
+# scalar version is understood and verified.

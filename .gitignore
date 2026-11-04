@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# Datasets and captured telemetry stay out of version control.
+data/raw/
+data/processed/
+
+# Generated experiment artifacts; the log records how to reproduce them.
+experiments/results/*
+!experiments/results/.gitkeep
