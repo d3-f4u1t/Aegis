@@ -1,9 +1,27 @@
 __pycache__/
 *.py[cod]
+*$py.class
 *.egg-info/
+*.eggs/
 .pytest_cache/
 .venv/
 venv/
+.env
+.build/
+dist/
+*.so
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_OS
+Thumbs.db
+
+# OS
+desktop.ini
 
 # Datasets and captured telemetry stay out of version control.
 data/raw/
@@ -12,3 +30,12 @@ data/processed/
 # Generated experiment artifacts; the log records how to reproduce them.
 experiments/results/*
 !experiments/results/.gitkeep
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml

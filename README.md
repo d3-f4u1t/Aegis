@@ -1,112 +1,295 @@
 # Website Traffic Anomaly Detection — From-Scratch Neural Network
 
-A from-scratch neural-network engine plus a passive website-ingress monitoring
-pipeline. The engine is plain Python today: **no PyTorch, TensorFlow, Keras,
-JAX, or automatic differentiation.**
+A from-scratch neural-network engine, written in plain Python and NumPy, intended
+as the detection core of a passive, out-of-band website traffic monitoring and
+anomaly-detection system.
 
-**Current status:** Milestone 1 — the numerical core works and is tested.
-Website telemetry, datasets, and detection are not started yet.
+**This repository currently contains only the neural-network engine.** Website
+telemetry collection, feature extraction, datasets, training on traffic data,
+and detection integration are **not yet implemented**. Nothing here detects
+attacks in live traffic.
 
-## Quick start
+## The problem
 
-Requires Python 3.11+. The runtime engine has no third-party dependencies.
+Website operators need to tell the difference between normal visitors and
+anomalous behaviour — for example, a sudden flood of requests from one client,
+repeated scanning of invalid paths, or login patterns that look like brute-force
+attacks. Most off-the-shelf tools are black boxes: they raise alerts without
+exposing how a decision was made, and they are difficult to verify or adapt.
 
-```powershell
-python -m pytest                     # run the full test suite
-python -m examples.train_xor         # train a tiny MLP, print results, save a checkpoint
-```
+This project takes a different approach: build the neural network from first
+principles so that every weight, gradient, and update is understood and
+inspectable, then use it as one signal in a passive monitoring pipeline that
+observes — but never blocks or modifies — live website traffic.
 
-Expected demo tail:
+## Why build from scratch
 
-```text
-final loss=0.00000051  accuracy=1.00
-model saved to ...\experiments\results\xor_mlp.json
-```
+Most deep-learning projects import a framework (PyTorch, TensorFlow, JAX) and
+treat the model as a black box. That is appropriate for many applications, but
+it makes the following hard:
 
-## What is implemented
+* Verifying that backpropagation is implemented correctly.
+* Understanding exactly what computation runs on live data.
+* Reproducing results across environments without framework version drift.
+* Adapting the math to an unusual domain such as HTTP request features.
 
-| Component | File | Notes |
+This engine implements every operation by hand: neurons, dense layers, forward
+propagation, activation functions, loss functions, backpropagation, and
+optimisers (SGD, momentum, Adam). There is no automatic differentiation. The
+code is the documentation.
+
+Two implementations share the same mathematics:
+
+| Implementation | Status | Purpose |
 |---|---|---|
-| Activations + derivatives | `nn/activations.py` | sigmoid, tanh, ReLU, identity, stable softmax |
-| Neuron / dense layer | `nn/layers.py` | explicit scalar loops, per-parameter gradients |
-| MLP | `nn/model.py` | configurable depth/width, seeded initialisation |
-| Losses | `nn/losses.py` | MSE, binary cross-entropy with logits, textbook BCE |
-| Optimizers | `nn/optimizers.py` | SGD, momentum, Adam with bias correction |
-| Training loop | `training/train.py` | mini-batches, shuffling, validation, history |
-| Metrics | `training/metrics.py` | confusion matrix, precision/recall/F1, FPR/FNR, detection rate at a target FPR |
-| Checkpoints | `nn/serialization.py` | JSON with architecture + weights + metadata |
-| Tests | `tests/` | 46 tests, including per-parameter numerical gradient checks |
+| `nn/` — scalar Python | Reference implementation | Audited, easy to inspect, used as the mathematical ground truth |
+| `nn_numpy/` — NumPy | Vectorised kernel | Parity-tested against `nn/`; substantially faster on realistic batch sizes |
 
-The gradient check compares every analytic gradient against a central finite
-difference. That is the main correctness guarantee for the hand-written
-backpropagation.
+## What this project is (and is not)
 
-## Design decisions (current milestone)
+**It is:**
 
-1. **Scalar Python first.** Parameters are individual `Parameter` objects, not
-   arrays. This makes the chain rule inspectable and the gradient check
-   unambiguous. NumPy replaces the storage later, behind the same layer API.
-2. **Logits, not probabilities, at the output.** The binary network emits one
-   raw logit and `BinaryCrossEntropyWithLogits` applies the sigmoid internally.
-   This is numerically stable and makes the gradient simplify to `p - y`.
-   `predict_proba()` applies the sigmoid at inference time.
-3. **Gradients accumulate; only the optimizer mutates values.** This keeps
-   mini-batch training correct and makes gradient checking straightforward.
-4. **Checkpoints are self-describing.** Architecture, weights, and arbitrary
-   metadata (dataset, seed, schema version later) travel together. A future
-   inference process must reject a mismatch rather than silently use stale
-   preprocessing.
-5. **Determinism is testable.** Same seed => identical initial parameters;
-   save/load preserves outputs exactly.
+* A from-scratch multilayer perceptron (MLP) engine with forward propagation,
+  backpropagation, losses, and optimisers.
+* Numerically verified: every analytic gradient is checked against central
+  finite differences, and the NumPy engine is parity-tested against the scalar
+  reference.
+* Designed for a specific deployment pattern: passive, out-of-band monitoring
+  that never sits in a website's request path.
+
+**It is not:**
+
+* A deployed website anomaly detector.
+* A trained model on real traffic data.
+* A firewall, WAF, IPS, or automatic blocking system.
+* A claim that any particular attack (SQL injection, brute force, scraping,
+  etc.) can be detected.
+
+Attack detection requires labelled traffic data, a defined feature schema, and
+trained thresholds — none of which exist in this repository yet. The engine is
+the foundation; the detection pipeline is future work (see Roadmap).
+
+## Technical approach
+
+The engine is a small, configurable multilayer perceptron:
+
+```
+input features  →  Dense → ReLU/tanh  →  Dense → …  →  Dense (logit output)
+                                                   ↳ sigmoid → P(class = 1)
+```
+
+* Forward pass: `Z = X @ W + b`, then `A = activation(Z)`.
+* Backward pass: the chain rule is applied by hand, layer by layer, in reverse.
+  Gradients accumulate into parameters; only the optimiser mutates values.
+* Binary output: a single logit. The sigmoid lives inside
+  `BinaryCrossEntropyWithLogits`, which keeps the gradient stable
+  (`sigmoid(z) - y`) even for extreme logits.
+* Checkpoints are self-describing JSON: architecture, weights, bias, and
+  metadata travel together.
+
+### Data flow (intended, not yet built)
+
+```
+website visitor
+      │
+      ▼
+[web server / reverse proxy]  ──►  structured access logs / middleware events
+      │                                              │
+      │                                              ▼
+      │                                   [passive collector]
+      │                                              │
+      │                                              ▼
+      │                                   [feature extraction]
+      │                                              │
+      │                                              ▼
+      │                                   [preprocessing]
+      │                                              │
+      │                                              ▼
+      │                                   [MLP inference]
+      │                                              │
+      │                                              ▼
+      │                                   [detection policy]
+      │                                              │
+      │                                              ▼
+      │                                   [alert store / UI]
+```
+
+The monitoring branch is out of band: if it stops, the website keeps serving
+normally. Nothing is placed synchronously in the request path.
+
+## Current development status
+
+| Area | Status |
+|---|---|
+| Scalar neural-network engine (`nn/`) | Implemented, audited, tested |
+| NumPy vectorised engine (`nn_numpy/`) | Implemented, parity-tested vs scalar |
+| Training loop, metrics, checkpoints | Implemented (scalar) |
+| Verification (gradient checks, parity, XOR demo) | Implemented, 130 tests passing |
+| Website telemetry collection | Not started |
+| Feature extraction from HTTP logs | Not started |
+| Training on traffic data | Not started |
+| Detection integration and alerting | Not started |
+
+## Features implemented
+
+* Neurons and dense layers, hand-written forward propagation
+* Activations: sigmoid, tanh, ReLU, identity, softmax (each with derivative)
+* Losses: mean squared error, binary cross-entropy with logits, textbook BCE
+* Optimisers: SGD, momentum, Adam (bias-corrected)
+* Backpropagation implemented manually (no automatic differentiation)
+* Mini-batch training with shuffling and validation loss
+* Model checkpoints (JSON, self-describing)
+* Reproducible seeded initialisation
+* Numerical gradient verification (central finite differences)
+* Scalar ↔ NumPy parity tests (forward, loss, gradients, optimiser updates,
+  multi-epoch training)
+* Benchmark harness comparing scalar vs NumPy performance
+* Deterministic demo: the engine learns XOR (loss ≈ 5e-7, 4/4 correct)
+
+## Planned features (not started)
+
+* Preprocessing pipeline fitted on training data only
+* Local website + structured-log telemetry collector
+* Windowed behavioural features (request rate, unique paths, error ratios)
+* Compatible HTTP dataset (e.g. CSIC 2010) plus locally generated traffic
+* Binary supervised classifier for known traffic patterns
+* Autoencoder anomaly path for previously unseen behaviour
+* Passive inference and stored alert records
+* Comparison vs simple rate thresholds and conventional models
+* Selected low-level C kernels after CPU profiling
 
 ## Repository layout
 
-```text
-nn/                     neural-network engine
-training/               training loop, evaluation, metrics
-examples/               runnable demos
-tests/                  unit and numerical-correctness tests
-docs/                   project direction and review notes
-experiments/            experiment log; generated results are git-ignored
+```
+website-traffic-anomaly-detection/
+├── .github/                CI workflows and issue templates
+├── benchmarks/             Scalar vs NumPy performance benchmark
+├── docs/                   Project direction, architecture, audit, roadmap
+├── examples/               Runnable demos (e.g. XOR training)
+├── experiments/            Experiment log; generated results are git-ignored
+├── nn/                     Scalar reference engine (Python, audited)
+├── nn_numpy/               NumPy vectorised engine (parity-tested)
+├── training/               Scalar training loop, metrics
+├── tests/                  Unit and numerical-correctness tests
+├── CODE_OF_CONDUCT.md
+├── CONTRIBUTING.md
+├── LICENSE                 (placeholder — license not yet selected)
+├── README.md
+├── SECURITY.md
+├── pyproject.toml
+├── requirements.txt        (runtime: none — stdlib only)
+└── requirements-dev.txt    (pytest, numpy)
 ```
 
-The planned long-term layout (telemetry, detection, dashboard, C kernels) is in
-`docs/PROJECT_DIRECTION.md` §10. Directories are added when their
-responsibility becomes real, not before.
+## Installation
+
+```powershell
+# Clone the repository
+git clone https://github.com/<your-username>/website-traffic-anomaly-detection.git
+cd website-traffic-anomaly-detection
+
+# Create a virtual environment (recommended)
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+# Install development dependencies (pytest, numpy)
+pip install -r requirements-dev.txt
+```
+
+The runtime engine (`nn/` and `nn_numpy/`) uses only the Python standard library
+and NumPy respectively. No deep-learning framework is required or used.
+
+## Running the tests
+
+```powershell
+python -m pytest
+```
+
+Expected output: all tests pass (currently 130). The suite includes:
+
+* Scalar engine tests: activations, forward pass, gradients (numeric checks),
+  optimisers, serialization, training, metrics
+* NumPy engine tests: activations, losses, optimisers, serialization, training
+* Scalar-vs-NumPy parity tests: forward outputs, loss values, per-parameter
+  gradients, optimiser updates, multi-epoch training
+
+## Running the examples
+
+```powershell
+# Train the from-scratch MLP on XOR and save a checkpoint
+python -m examples.train_xor
+```
+
+Expected output: final loss ≈ 5e-7, all four XOR samples classified correctly,
+checkpoint written to `experiments/results/xor_mlp.json`.
+
+## Reproducing experiments
+
+All experiments are recorded in `experiments/experiment_log.md`. Each entry
+states the question, setup, command, result, and interpretation, and references
+the commit that produced it. Generated artifacts in `experiments/results/` are
+git-ignored; they can be reproduced by running the commands in the log.
+
+To reproduce the NumPy benchmark:
+
+```powershell
+python benchmarks/benchmark_numpy.py
+```
+
+Results are saved to `benchmarks/results.md`. Timing is wall-clock and varies
+between runs; the benchmark reports relative speedup, not absolute performance.
 
 ## Roadmap
 
-- [x] Phase 0–2: neuron, layers, forward pass, losses, backpropagation,
-      SGD/momentum/Adam, numerical gradient checks
-- [x] Phase 3 (partial): mini-batches, validation loss, metrics, seeds,
-      JSON checkpoints
-- [ ] Phase 1b: NumPy array implementation with parity tests against the scalar
-      engine; benchmark both
-- [ ] Phase 3 (rest): preprocessing pipeline fitted on training data only,
-      experiment harness, train/validation/test protocol
-- [ ] Phase 4: local website + passive structured-log collector + windowed
-      feature extraction
-- [ ] Phase 5: compatible HTTP dataset, binary supervised classifier, honest
-      evaluation
-- [ ] Phase 6: passive inference + alert records
-- [ ] Phase 7: autoencoder anomaly path
-- [ ] Phase 8: profiling and selected C kernels
+The phased plan is in `docs/DEVELOPMENT_ROADMAP.md`. In summary:
 
-## Open decisions
+1. **Phase 0–2 (done):** Scalar engine, losses, backpropagation, optimisers,
+   gradient checks
+2. **Phase 1b (done):** NumPy vectorised engine with parity tests
+3. **Phase 3 (next):** Preprocessing pipeline, experiment harness, train/val/test
+   protocol
+4. **Phase 4:** Local website + passive telemetry collector + windowed features
+5. **Phase 5:** Compatible HTTP dataset, binary supervised classifier, evaluation
+6. **Phase 6:** Passive inference + alert records
+7. **Phase 7:** Autoencoder anomaly detection
+8. **Phase 8:** Profiling and selected C kernels
 
-These are tracked in `docs/REVIEW_NOTES.md` and must be settled before Phase 5:
+## Limitations and honest caveats
 
-1. Which dataset family defines the feature schema (request-level HTTP vs
-   flow-level network data — they are not interchangeable).
-2. The v1 attack taxonomy (behavioural attacks are observable in logs;
-   payload attacks such as SQLi/XSS need URL/query-string features).
-3. An alert budget (acceptable alerts/day at a chosen false-positive rate),
-   which is the real operating constraint.
+* **No attack detection is implemented.** The repository contains a neural
+  network engine, not a detector. Real-world detection requires labelled traffic
+  data and trained thresholds that do not yet exist.
+* **An anomaly score is not proof of malicious intent.** Future alerting will
+  treat model output as an investigation lead, not a definitive verdict.
+* **The scalar engine is slow.** It is intentionally scalar for inspectability;
+  the NumPy engine is the performance-oriented kernel.
+* **Same seed does not produce identical initialisation across the two
+  engines** (Python `random.Random` vs NumPy `RandomState`). Parity is
+  established by copying parameter values, not by matching seeds.
+* **Benchmark results are wall-clock timings** on one machine and vary between
+  runs. They indicate relative behaviour, not absolute performance guarantees.
 
-## Documents
+## Documentation
 
-- `docs/PROJECT_DIRECTION.md` — the full project direction and phase plan.
-- `docs/REVIEW_NOTES.md` — engineering review: strengths, risks, and concrete
-  recommendations.
-- `experiments/experiment_log.md` — what was run, with which configuration and
-  result.
+* `docs/PROJECT_DIRECTION.md` — project scope, non-goals, deployment architecture
+* `docs/ARCHITECTURE.md` — engine architecture, data flow, shapes, gradients
+* `docs/SCALAR_ENGINE_AUDIT.md` — independent audit of the scalar engine
+* `docs/NUMPY_ENGINE.md` — NumPy engine shapes, dimensions, gradient calculations
+* `docs/DEVELOPMENT_ROADMAP.md` — phased development plan
+* `docs/EXPERIMENTS.md` — index to the experiment log
+* `docs/REVIEW_NOTES.md` — engineering review of risks and data-contract decisions
+
+## License
+
+A `LICENSE` placeholder is present. No license has been selected yet; one must
+be chosen before any public release. See the repository for the current state.
+
+## Contributing
+
+See `CONTRIBUTING.md` for how to report bugs, suggest features, and submit
+changes. All contributions are subject to the project's
+`CODE_OF_CONDUCT.md`.
+
+## Security
+
+See `SECURITY.md` for the security policy and responsible disclosure process.
