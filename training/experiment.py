@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -42,9 +43,17 @@ from training.dataset import (
     load_dataset,
     preprocess_split,
     split_by_client,
+    split_scenario_held_out,
+    split_stratified_by_client,
 )
 from telemetry.windows.window_aggregator import WindowConfig
-from training.evaluate import binary_metrics, operating_point, pr_auc, threshold_sweep
+from training.evaluate import (
+    average_precision,
+    binary_metrics,
+    operating_point,
+    pr_auc,
+    threshold_sweep,
+)
 from training.logistic_regression import LogisticRegression
 from training.threshold_baseline import ThresholdBaseline
 
@@ -60,8 +69,12 @@ class ExperimentConfig:
     val_ratio: float = 0.2
     test_ratio: float = 0.2
 
-    # Model selection: "mlp", "logistic_regression", "threshold", or "all"
+    # Model selection: "mlp", "numpy_mlp", "scalar_mlp", "logistic_regression", "threshold"
     models: list[str] = field(default_factory=lambda: ["mlp", "logistic_regression", "threshold"])
+
+    # Splitting strategy: "client", "stratified_client", or "scenario_held_out"
+    split_strategy: str = "stratified_client"
+    held_out_scenarios: list[str] = field(default_factory=list)
 
     # MLP hyperparameters
     mlp_hidden_sizes: list[int] = field(default_factory=lambda: [16, 8])
@@ -144,14 +157,32 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResult:
         attack_client_hashes=set(config.attack_client_hashes),
     )
 
-    # ── Step 3: Split by client ───────────────────────────────────────────
-    train_ds, val_ds, test_ds = split_by_client(
-        dataset,
-        train_ratio=config.train_ratio,
-        val_ratio=config.val_ratio,
-        test_ratio=config.test_ratio,
-        seed=config.seed,
-    )
+    # ── Step 3: Split by client / scenario ──────────────────────────────────
+    if config.split_strategy == "scenario_held_out":
+        train_ds, val_ds, test_ds = split_scenario_held_out(
+            dataset,
+            held_out_scenarios=config.held_out_scenarios,
+            train_ratio=config.train_ratio,
+            val_ratio=config.val_ratio,
+            test_ratio=config.test_ratio,
+            seed=config.seed,
+        )
+    elif config.split_strategy == "stratified_client":
+        train_ds, val_ds, test_ds = split_stratified_by_client(
+            dataset,
+            train_ratio=config.train_ratio,
+            val_ratio=config.val_ratio,
+            test_ratio=config.test_ratio,
+            seed=config.seed,
+        )
+    else:
+        train_ds, val_ds, test_ds = split_by_client(
+            dataset,
+            train_ratio=config.train_ratio,
+            val_ratio=config.val_ratio,
+            test_ratio=config.test_ratio,
+            seed=config.seed,
+        )
 
     # ── Step 4: Fit preprocessing on training data only ───────────────────
     scaler = fit_preprocessing(train_ds)
@@ -175,6 +206,7 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResult:
             val_y=val_y,
             test_X=test_X,
             test_y=test_y,
+            test_scenarios=test_ds.scenarios,
             feature_names=train_ds.feature_names,
             schema_version=train_ds.schema_version,
             output_dir=output_dir,
@@ -206,6 +238,37 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResult:
     )
 
 
+def _compute_per_scenario_metrics(
+    y_true: list[int],
+    preds: list[int],
+    scenarios: list[str],
+) -> dict[str, dict[str, float]]:
+    """Compute detection breakdown across distinct behavioural scenarios."""
+    breakdown: dict[str, dict[str, float]] = {}
+    for scen in sorted(set(scenarios)):
+        indices = [i for i, s in enumerate(scenarios) if s == scen]
+        sub_true = [y_true[i] for i in indices]
+        sub_preds = [preds[i] for i in indices]
+        total = len(indices)
+        correct = sum(1 for yt, yp in zip(sub_true, sub_preds) if yt == yp)
+        tp = sum(1 for yt, yp in zip(sub_true, sub_preds) if yt == 1 and yp == 1)
+        fp = sum(1 for yt, yp in zip(sub_true, sub_preds) if yt == 0 and yp == 1)
+        fn = sum(1 for yt, yp in zip(sub_true, sub_preds) if yt == 1 and yp == 0)
+        tn = sum(1 for yt, yp in zip(sub_true, sub_preds) if yt == 0 and yp == 0)
+        pos = sum(sub_true)
+        breakdown[scen] = {
+            "total_samples": float(total),
+            "accuracy": correct / total if total > 0 else 0.0,
+            "recall": tp / pos if pos > 0 else (1.0 if fn == 0 else 0.0),
+            "false_positive_rate": fp / (total - pos) if (total - pos) > 0 else 0.0,
+            "tp": float(tp),
+            "fp": float(fp),
+            "tn": float(tn),
+            "fn": float(fn),
+        }
+    return breakdown
+
+
 def _train_and_evaluate(
     model_name: str,
     config: ExperimentConfig,
@@ -215,6 +278,7 @@ def _train_and_evaluate(
     val_y: list[float],
     test_X: list[list[float]],
     test_y: list[float],
+    test_scenarios: list[str],
     feature_names: list[str],
     schema_version: str,
     output_dir: Path,
@@ -224,19 +288,27 @@ def _train_and_evaluate(
     if model_name == "threshold":
         return _run_threshold_baseline(
             config, train_X, train_y, val_X, val_y, test_X, test_y,
-            feature_names, schema_version, output_dir,
+            test_scenarios, feature_names, schema_version, output_dir,
         )
 
     if model_name == "logistic_regression":
         return _run_logistic_regression(
             config, train_X, train_y, val_X, val_y, test_X, test_y,
-            feature_names, schema_version, output_dir,
+            test_scenarios, feature_names, schema_version, output_dir,
         )
 
-    if model_name == "mlp":
+    if model_name in ("mlp", "numpy_mlp"):
         return _run_mlp(
             config, train_X, train_y, val_X, val_y, test_X, test_y,
-            feature_names, schema_version, output_dir,
+            test_scenarios, feature_names, schema_version, output_dir,
+            use_numpy=True,
+        )
+
+    if model_name == "scalar_mlp":
+        return _run_mlp(
+            config, train_X, train_y, val_X, val_y, test_X, test_y,
+            test_scenarios, feature_names, schema_version, output_dir,
+            use_numpy=False,
         )
 
     raise ValueError(f"Unknown model: {model_name}")
@@ -244,7 +316,7 @@ def _train_and_evaluate(
 
 def _run_threshold_baseline(
     config, train_X, train_y, val_X, val_y, test_X, test_y,
-    feature_names, schema_version, output_dir,
+    test_scenarios, feature_names, schema_version, output_dir,
 ) -> dict:
     model = ThresholdBaseline(
         feature_index=config.threshold_feature_index,
@@ -256,12 +328,23 @@ def _run_threshold_baseline(
     )
 
     test_scores = model.predict_proba(test_X)
-    test_preds = model.predict(test_X)
+    test_preds = [1 if s >= model.threshold else 0 for s in test_scores]
+    y_true_int = [int(y) for y in test_y]
 
-    metrics = binary_metrics([int(y) for y in test_y], test_scores, threshold=0.5)
+    # Benchmark latency
+    t0 = time.perf_counter()
+    for _ in range(20):
+        _ = model.predict(test_X)
+    t1 = time.perf_counter()
+    latency_ms = ((t1 - t0) / (20 * max(1, len(test_X)))) * 1000.0
+
+    metrics = binary_metrics(y_true_int, test_scores, threshold=model.threshold)
     metrics["threshold"] = model.threshold
     metrics["feature_name"] = model.feature_name
-    metrics["pr_auc"] = pr_auc([int(y) for y in test_y], test_scores)
+    metrics["pr_auc"] = pr_auc(y_true_int, test_scores)
+    metrics["average_precision"] = average_precision(y_true_int, test_scores)
+    metrics["inference_latency_ms_per_sample"] = latency_ms
+    metrics["per_scenario"] = _compute_per_scenario_metrics(y_true_int, test_preds, test_scenarios)
 
     params_path = output_dir / f"{config.experiment_name}_threshold.json"
     with open(params_path, "w", encoding="utf-8") as fh:
@@ -273,7 +356,7 @@ def _run_threshold_baseline(
 
 def _run_logistic_regression(
     config, train_X, train_y, val_X, val_y, test_X, test_y,
-    feature_names, schema_version, output_dir,
+    test_scenarios, feature_names, schema_version, output_dir,
 ) -> dict:
     model = LogisticRegression(
         lr=config.lr_learning_rate,
@@ -283,10 +366,21 @@ def _run_logistic_regression(
     model.fit(train_X, train_y, feature_names=feature_names, schema_version=schema_version)
 
     test_probs = model.predict_proba(test_X).tolist()
-    test_preds = model.predict(test_X).tolist()
+    test_preds = [1 if p >= 0.5 else 0 for p in test_probs]
+    y_true_int = [int(y) for y in test_y]
 
-    metrics = binary_metrics([int(y) for y in test_y], test_probs, threshold=0.5)
-    metrics["pr_auc"] = pr_auc([int(y) for y in test_y], test_probs)
+    # Benchmark latency
+    t0 = time.perf_counter()
+    for _ in range(20):
+        _ = model.predict(test_X)
+    t1 = time.perf_counter()
+    latency_ms = ((t1 - t0) / (20 * max(1, len(test_X)))) * 1000.0
+
+    metrics = binary_metrics(y_true_int, test_probs, threshold=0.5)
+    metrics["pr_auc"] = pr_auc(y_true_int, test_probs)
+    metrics["average_precision"] = average_precision(y_true_int, test_probs)
+    metrics["inference_latency_ms_per_sample"] = latency_ms
+    metrics["per_scenario"] = _compute_per_scenario_metrics(y_true_int, test_preds, test_scenarios)
 
     params_path = output_dir / f"{config.experiment_name}_logistic_regression.json"
     with open(params_path, "w", encoding="utf-8") as fh:
@@ -298,11 +392,13 @@ def _run_logistic_regression(
 
 def _run_mlp(
     config, train_X, train_y, val_X, val_y, test_X, test_y,
-    feature_names, schema_version, output_dir,
+    test_scenarios, feature_names, schema_version, output_dir,
+    use_numpy: bool = True,
 ) -> dict:
     sizes = [len(train_X[0])] + list(config.mlp_hidden_sizes) + [1]
+    y_true_int = [int(y) for y in test_y]
 
-    if config.mlp_use_numpy:
+    if use_numpy:
         model = NumpyMLP(
             sizes=sizes,
             hidden_activation=config.mlp_hidden_activation,
@@ -326,12 +422,19 @@ def _run_mlp(
             y_val=np.asarray(val_y, dtype=float),
         )
 
-        test_probs_raw = model.predict_proba(np.asarray(test_X, dtype=float)).tolist()
+        test_X_arr = np.asarray(test_X, dtype=float)
+        test_probs_raw = model.predict_proba(test_X_arr).tolist()
         # predict_proba on 2D input returns [[p1], [p2], ...]; flatten to [p1, p2, ...]
         test_probs = [float(p[0]) if isinstance(p, list) else float(p) for p in test_probs_raw]
-        test_preds = model.predict(np.asarray(test_X, dtype=float)).tolist()
+        test_preds = [1 if p >= 0.5 else 0 for p in test_probs]
 
-        model_path = output_dir / f"{config.experiment_name}_mlp.json"
+        t0 = time.perf_counter()
+        for _ in range(20):
+            _ = model.predict(test_X_arr)
+        t1 = time.perf_counter()
+        latency_ms = ((t1 - t0) / (20 * max(1, len(test_X)))) * 1000.0
+
+        model_path = output_dir / f"{config.experiment_name}_numpy_mlp.json"
         save_nn_numpy_model(model, model_path, metadata={
             "experiment": config.experiment_name,
             "config_hash": config.config_hash(),
@@ -365,9 +468,15 @@ def _run_mlp(
         )
 
         test_probs = [float(model.predict_proba(x)) for x in test_X]
-        test_preds = model.predict(test_X)
+        test_preds = [1 if p >= 0.5 else 0 for p in test_probs]
 
-        model_path = output_dir / f"{config.experiment_name}_mlp.json"
+        t0 = time.perf_counter()
+        for _ in range(5):
+            _ = [model.predict(x) for x in test_X]
+        t1 = time.perf_counter()
+        latency_ms = ((t1 - t0) / (5 * max(1, len(test_X)))) * 1000.0
+
+        model_path = output_dir / f"{config.experiment_name}_scalar_mlp.json"
         save_scalar_model(model, model_path, metadata={
             "experiment": config.experiment_name,
             "config_hash": config.config_hash(),
@@ -376,8 +485,11 @@ def _run_mlp(
         })
         artifact_path = str(model_path)
 
-    metrics = binary_metrics([int(y) for y in test_y], test_probs, threshold=0.5)
-    metrics["pr_auc"] = pr_auc([int(y) for y in test_y], test_probs)
+    metrics = binary_metrics(y_true_int, test_probs, threshold=0.5)
+    metrics["pr_auc"] = pr_auc(y_true_int, test_probs)
+    metrics["average_precision"] = average_precision(y_true_int, test_probs)
+    metrics["inference_latency_ms_per_sample"] = latency_ms
+    metrics["per_scenario"] = _compute_per_scenario_metrics(y_true_int, test_preds, test_scenarios)
     metrics["final_train_loss"] = history.loss[-1] if history.loss else None
     if history.val_loss:
         metrics["final_val_loss"] = history.val_loss[-1]

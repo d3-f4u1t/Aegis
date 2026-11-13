@@ -23,13 +23,13 @@ def precision_recall_curve(
 ) -> tuple[list[float], list[float], list[float]]:
     """Compute precision-recall curve points.
 
-    Sweeps every observed score as a candidate threshold (from high to low)
+    Sweeps every observed unique score as a candidate threshold (from high to low)
     and returns ``(precisions, recalls, thresholds)`` where each index
-    corresponds to the same threshold.
+    corresponds to evaluating positive predictions at ``score >= threshold``.
 
-    The first point is at threshold = max(scores) + epsilon (no predictions,
-    precision = 1.0 by convention, recall = 0.0). The last point is at
-    threshold = min(scores) (all predicted positive).
+    The initial point is at threshold = inf (no positive predictions,
+    precision = 1.0 by standard convention, recall = 0.0). Subsequent points
+    correspond to the unique observed scores in descending order.
     """
     if len(y_true) != len(scores):
         raise ValueError("y_true and scores must have the same length")
@@ -37,56 +37,59 @@ def precision_recall_curve(
         raise ValueError("cannot compute curve on empty data")
 
     positives = sum(1 for v in y_true if v == 1)
-    negatives = len(y_true) - positives
     if positives == 0:
         raise ValueError("need at least one positive example")
 
-    # Sort by score descending; ties grouped together.
+    # Sort samples by score descending; group by identical scores.
     scored = sorted(zip(scores, y_true), key=lambda x: x[0], reverse=True)
 
-    precisions: list[float] = [1.0]  # threshold above all scores: no preds
+    precisions: list[float] = [1.0]  # threshold above all scores: no positive predictions
     recalls: list[float] = [0.0]
     thresholds: list[float] = [float("inf")]
 
     tp = 0
     fp = 0
-    prev_score = None
+    i = 0
+    n = len(scored)
 
-    for score, label in scored:
-        # Only compute metrics when score changes (threshold = score).
-        if score != prev_score:
-            precision = tp / (tp + fp) if (tp + fp) > 0 else 1.0
-            recall = tp / positives
-            precisions.append(precision)
-            recalls.append(recall)
-            thresholds.append(score)
-            prev_score = score
+    while i < n:
+        current_score = scored[i][0]
+        # Accumulate all samples with the same score threshold
+        while i < n and scored[i][0] == current_score:
+            if scored[i][1] == 1:
+                tp += 1
+            else:
+                fp += 1
+            i += 1
 
-        if label == 1:
-            tp += 1
-        else:
-            fp += 1
-
-    # Final point: all samples predicted positive.
-    precision = tp / (tp + fp) if (tp + fp) > 0 else 1.0
-    recall = tp / positives
-    precisions.append(precision)
-    recalls.append(recall)
-    thresholds.append(float(scores[0]) if scores else 0.0)  # min score after sort
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 1.0
+        recall = tp / positives
+        precisions.append(precision)
+        recalls.append(recall)
+        thresholds.append(current_score)
 
     return precisions, recalls, thresholds
 
 
 def pr_auc(y_true: Sequence[int], scores: Sequence[float]) -> float:
-    """Area under the precision-recall curve.
+    """Area under the precision-recall curve using the trapezoidal rule.
 
-    Uses trapezoidal integration over recall. Returns 0.0 if there are no
-    positive examples.
+    Note on calculation:
+    Trapezoidal integration linearly connects adjacent (recall, precision)
+    points with straight line segments:
+        area += (r1 - r0) * (p0 + p1) / 2.0
+
+    Important methodological note:
+    Because precision does not vary linearly with recall between empirical
+    operating points, trapezoidal integration systematically overestimates
+    the true area under the PR curve (Davis & Goadrich, 2006). For example,
+    on an uninformative classifier with a 50% positive rate, trapezoidal PR-AUC
+    evaluates to 0.75 rather than 0.50. For an un-interpolated, step-wise metric,
+    use :func:`average_precision`.
     """
     precisions, recalls, _ = precision_recall_curve(list(y_true), list(scores))
 
     # Integrate precision over recall using trapezoidal rule.
-    # Sort by recall ascending (should already be, but be safe).
     points = sorted(zip(recalls, precisions), key=lambda x: x[0])
     area = 0.0
     for i in range(1, len(points)):
@@ -94,6 +97,31 @@ def pr_auc(y_true: Sequence[int], scores: Sequence[float]) -> float:
         r1, p1 = points[i]
         area += (r1 - r0) * (p0 + p1) / 2.0
     return area
+
+
+def average_precision(y_true: Sequence[int], scores: Sequence[float]) -> float:
+    """Compute Average Precision (AP) summarizing the precision-recall curve.
+
+    Calculated as the weighted mean of precisions achieved at each threshold,
+    weighted by the increase in recall from the previous threshold:
+
+        AP = sum_n (R_n - R_{n-1}) * P_n
+
+    This avoids the linear interpolation bias of the trapezoidal rule and
+    accurately reflects the expected precision across recall levels. For an
+    uninformative random model, AP converges to the base rate of positive examples.
+    """
+    positives = sum(1 for v in y_true if v == 1)
+    if positives == 0:
+        return 0.0
+
+    precisions, recalls, _ = precision_recall_curve(list(y_true), list(scores))
+    ap = 0.0
+    for i in range(1, len(recalls)):
+        delta_r = recalls[i] - recalls[i - 1]
+        if delta_r > 0:
+            ap += delta_r * precisions[i]
+    return ap
 
 
 def operating_point(

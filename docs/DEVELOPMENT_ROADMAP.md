@@ -36,13 +36,18 @@ fixed-duration window aggregation, feature extractor matching
 statistics. Validated end-to-end with 2,226 synthetic events from 12 clients.
 No Flask app, no Vercel integration, no model training.
 
-### Phase 5 — Supervised detection (not started — awaiting approval)
-A compatible HTTP dataset (e.g. CSIC 2010) plus locally generated traffic.
-Train a binary supervised classifier for known traffic patterns. Evaluate
-honestly (confusion matrix, precision/recall/F1, FPR/FNR, PR-AUC) and compare
-against simple rate thresholds and conventional models.
+### Phase 5 — Supervised classification (complete)
+Evaluated supervised binary classification on realistic 13-feature behavioural
+telemetry with 13 distinct scenarios (6 normal, 7 attack-like) across 45 clients
+(54,294 events, 2,695 windows). Compared rate threshold, logistic regression,
+scalar MLP, and NumPy MLP. Findings: in-distribution, NumPy MLP achieved 99.49%
+accuracy (0.9952 F1) and resolved subtle low-rate scans that logistic regression
+partially missed; out-of-distribution (unseen attack patterns), the supervised
+MLP overfit to error signatures and missed zero-error scraping, providing
+empirical justification for unsupervised anomaly detection in Phase 7. 187 tests
+passing. Checkpoints and preprocessing artifacts saved.
 
-### Phase 6 — Passive integration
+### Phase 6 — Passive integration (not started — awaiting approval)
 Run inference on telemetry from the local website and generate stored alerts.
 Controlled test scenario produces observable alerts while normal requests
 continue unaffected.

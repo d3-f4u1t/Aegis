@@ -40,6 +40,11 @@ class WindowRecord:
     total_response_bytes: int = 0
     request_timestamps: list[str] = field(default_factory=list)
 
+    # Scenario metadata & ground-truth attribution
+    scenarios: list[str] = field(default_factory=list)
+    has_attack: bool = False
+    attack_event_count: int = 0
+
     def request_rate_per_second(self) -> float:
         if self.window_duration_seconds <= 0:
             return 0.0
@@ -147,6 +152,15 @@ def aggregate_windows(
             rec.total_duration_ms += ev.request_duration_ms
             rec.total_response_bytes += ev.response_bytes
             rec.request_timestamps.append(ev.timestamp_utc)
+
+            if ev.raw:
+                scen = ev.raw.get("scenario")
+                if scen:
+                    rec.scenarios.append(str(scen))
+                is_attack = ev.raw.get("label") == 1 or ev.raw.get("attack") is True
+                if is_attack:
+                    rec.has_attack = True
+                    rec.attack_event_count += 1
 
         rec.unique_paths = len(paths)
         rec.unique_methods = len(methods)
