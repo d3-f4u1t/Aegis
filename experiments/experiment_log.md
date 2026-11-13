@@ -84,6 +84,59 @@ Do not proceed to website integration yet.
 
 ---
 
+## 2026-11-13 — Phase 4: Website telemetry pipeline and feature schema v1
+
+**Question.** Can we build a reusable, versioned telemetry pipeline that converts
+raw HTTP events into normalized feature vectors matching a documented schema,
+with preprocessing statistics fitted on training data only?
+
+**Scope.** Local, controlled environment only. No Vercel integration, no model
+training, no public datasets, no C optimization, no autoencoder.
+
+**Implementation.** New `telemetry/` package and supporting modules:
+
+* `configs/feature_schema.yaml` — v1 feature schema: 12 request-level features
+  (method one-hot, path length, query count, status code, response bytes,
+  duration, content length, header count) + 13 behavioural window features
+  (request rate, unique paths/methods, 4xx/5xx counts and ratios, auth failures,
+  mean/max request size, mean response time, mean inter-request interval).
+* `telemetry/parsers/log_parser.py` — JSONL event parser into `NormalizedEvent`
+  records. Client IPs pseudonymized with SHA-256 + salt (aggregation key only,
+  never a numerical feature).
+* `telemetry/windows/window_aggregator.py` — Fixed-duration window aggregation
+  by pseudonymous client identity. Configurable window duration (default 60s).
+* `telemetry/feature_extractor.py` — Converts events and windows to fixed-order
+  numerical vectors matching the schema exactly (25 features total).
+* `training/preprocessing.py` — `StandardScaler` fitted on training data only;
+  statistics saved with model artifact; inference applies unchanged.
+* `examples/generate_synthetic_events.py` — Synthetic HTTP event generator for
+  testing (test-only utility, no web server required).
+* `tests/test_telemetry/` — 29 tests covering parser, window aggregator,
+  feature extractor, and preprocessing.
+
+**Validation.** Generated 2,226 synthetic events from 12 clients (3 attack-like
+with higher frequency and more 4xx/5xx). Pipeline: parse → aggregate into 432
+windows → extract 13-feature vectors → standardize → save/load roundtrip.
+All steps verified end-to-end.
+
+**Test results.** Full suite: 159 passed, 0 failed (46 scalar + 84 NumPy +
+29 telemetry).
+
+**Limitations.**
+- No live website yet; validated with synthetic events only.
+- Synthetic event generator is test-only, not a traffic generator for production.
+- No real access log format parsing yet (nginx/apache combined log format would
+  need a separate parser).
+- Preprocessing is standard scaling only; no robust scaling or quantization.
+- Schema is experimental v1, subject to change based on real telemetry inspection.
+
+**Next.** Update roadmap to mark Phase 4 complete; await approval before Phase 3
+(preprocessing harness, experiment harness, train/val/test protocol) or Phase 5
+(supervised classifier training).
+
+---
+
+
 ## 2026-11-04 — Phase 1b: NumPy vectorization
 
 **Question.** Can a NumPy-vectorized engine reproduce the audited scalar engine's
@@ -145,37 +198,4 @@ and measurably faster. Ready for the scalar engine to remain as the audited
 reference while the NumPy engine becomes the default numerical kernel. Do not
 proceed to Phase 2 without approval.
 
-
 ---
-
-## 2026-11-04 — Phase 0: Scalar engine audit
-
-**Question.** Is the existing scalar neural-network engine mathematically correct,
-genuinely from scratch, and safe to vectorize with NumPy?
-
-**Method.** Independent re-derivation (not reliance on the test suite) of every
-neuron/layer/loss/backprop/optimizer equation, followed by an adversarial
-numeric check of every analytic gradient against central finite differences.
-
-**Finding.** No critical defects. The engine is correct and from-scratch:
-stdlib `math`/`random`/`json` only; no PyTorch/TensorFlow/Keras/JAX/autograd.
-Per-parameter analytic-vs-numeric gradient agreement holds for MSE and
-BinaryCrossEntropyWithLogits across all 29 parameters of a `[3,4,2,1]` tanh
-network (58 assertions), and for all 13 parameters of a `[2,3,1]` ReLU network
-evaluated away from the kink.
-
-**Two Important risks documented and regression-tested:**
-1. `ReLU.derivative(0.0)` returns subgradient 0 — central differences at exactly
-   `z=0` legitimately disagree; gradient check uses tanh, ReLU covered away from
-   the kink.
-2. `BinaryCrossEntropy` gradient is dL/dp (probability), not dL/dz — contract
-   locked with a numeric test; `BinaryCrossEntropyWithLogits` remains the
-   logit-output loss.
-
-**Corrections.** No engine code changed (nothing was incorrect). Added two
-regression tests to `tests/test_gradients.py`; suite went from 46 → 48 passed,
-0 failed.
-
-**Result.** `docs/SCALAR_ENGINE_AUDIT.md` delivered; verdict PASS — proceed to
-NumPy vectorization (Phase 1b) with parity tests against this scalar baseline.
-Do not proceed to website integration yet.

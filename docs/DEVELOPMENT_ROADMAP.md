@@ -21,15 +21,17 @@ NumPy is up to ~220× faster than scalar on realistic batch sizes.
 ## In progress / next
 
 ### Phase 3 — Training harness
-Preprocessing pipeline fitted on training data only, experiment harness,
-train/validation/test protocol, reproducibility (seeds, schemas, metadata).
+Preprocessing pipeline fitted on training data only (StandardScaler implemented),
+experiment harness, train/validation/test protocol, reproducibility (seeds,
+schemas, metadata). Preprocessing module complete; remaining: experiment harness
+and train/val/test protocol.
 
-## Planned (not started)
-
-### Phase 4 — Website telemetry
-A local website and passive structured-log collector. Windowed behavioural
-features (request rate, unique paths, 4xx/5xx ratios, mean size, latency).
-The collector must not affect website operation.
+### Phase 4 — Website telemetry (complete)
+A local, controlled telemetry pipeline: synthetic event generator, JSONL parser,
+fixed-duration window aggregation, feature extractor matching
+`configs/feature_schema.yaml` v1, and preprocessing with training-data-only
+statistics. Validated end-to-end with 2,226 synthetic events from 12 clients.
+No Flask app, no Vercel integration, no model training.
 
 ### Phase 5 — Supervised detection
 A compatible HTTP dataset (e.g. CSIC 2010) plus locally generated traffic.

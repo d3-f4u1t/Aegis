@@ -26,6 +26,7 @@ desktop.ini
 # Datasets and captured telemetry stay out of version control.
 data/raw/
 data/processed/
+data/telemetry/
 
 # Generated experiment artifacts; the log records how to reproduce them.
 experiments/results/*

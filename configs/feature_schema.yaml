@@ -1,0 +1,122 @@
+# HTTP Traffic Feature Schema — v1 (experimental)
+
+**Status:** Initial experimental version, not a permanent design.  
+**Purpose:** Defines the data contract between telemetry collection and model
+training/inference. Training and live inference must use exactly this schema.
+**Compatibility:** Designed for structured access logs (e.g. Nginx/Apache
+combined log format, or application middleware events). Raw query strings,
+request bodies, passwords, session tokens, authorization headers, and cookies
+are intentionally excluded.
+
+---
+
+## Schema metadata
+
+```yaml
+schema_version: "1"
+schema_name: "http_traffic_v1"
+created: "2026-11-13"
+description: "Request-level and behavioural-window features for website traffic anomaly detection"
+observation_units:
+  - "request_level_event"
+  - "behavioural_window"
+default_window_duration_seconds: 60
+client_identity_pseudonymization: "sha256_with_salt"
+timezone: "UTC"
+```
+
+---
+
+## Request-level features
+
+One feature vector per HTTP request. Available after the response is complete
+(status code, response bytes, and duration are response-level fields).
+
+| Feature | Source | Unit | Encoding | Availability | Missing value handling |
+|---|---|---|---|---|---|
+| `http_method` | middleware event / access log | category | one-hot: [GET, POST, PUT, DELETE, OTHER] | after response | "OTHER" for unknown methods |
+| `path_length` | middleware event / access log | characters | integer | after response | 0 |
+| `query_param_count` | middleware event / access log | count | integer | after response | 0 |
+| `status_code` | middleware event / access log | category | integer value | after response | 0 |
+| `response_bytes` | middleware event / access log | bytes | integer | after response | 0 |
+| `request_duration_ms` | middleware event / access log | milliseconds | float | after response | 0.0 |
+| `content_length` | middleware event / access log | bytes | integer | after response | 0 |
+| `header_count` | middleware event / access log | count | integer | after response | 0 |
+
+---
+
+## Behavioural window features
+
+Aggregated by pseudonymous client identity over a configurable time window.
+One feature vector per window per client.
+
+| Feature | Source | Unit | Aggregation | Window | Missing value handling |
+|---|---|---|---|---|---|
+| `requests_per_window` | request events | count | sum | configurable (default 60s) | 0 |
+| `requests_per_second` | request events | rate | count / window_duration | configurable | 0.0 |
+| `unique_paths` | request events | count | cardinality of distinct paths | configurable | 0 |
+| `unique_methods` | request events | count | cardinality of distinct methods | configurable | 0 |
+| `status_4xx_count` | request events | count | sum | configurable | 0 |
+| `status_4xx_ratio` | request events | ratio | count_4xx / total_requests | configurable | 0.0 |
+| `status_5xx_count` | request events | count | sum | configurable | 0 |
+| `status_5xx_ratio` | request events | ratio | count_5xx / total_requests | configurable | 0.0 |
+| `auth_failure_count` | middleware events | count | sum | configurable | 0 |
+| `mean_request_size` | request events | bytes | mean | configurable | 0.0 |
+| `max_request_size` | request events | bytes | max | configurable | 0.0 |
+| `mean_response_time_ms` | request events | milliseconds | mean | configurable | 0.0 |
+| `mean_inter_request_interval_ms` | request events | milliseconds | mean of deltas between consecutive requests | configurable | 0.0 |
+
+---
+
+## Client identity
+
+IP addresses are used only as an aggregation key, never as a numerical feature.
+Client IPs are pseudonymized with SHA-256 + fixed salt before storage or
+feature computation. Shared NAT addresses, proxies, and changing addresses are
+not distinguished; all events from the same IP key share a window.
+
+---
+
+## Feature vector order
+
+The model input vector is constructed in this fixed order:
+
+1. Request-level (per event):
+   - http_method_GET, http_method_POST, http_method_PUT, http_method_DELETE, http_method_OTHER
+   - path_length
+   - query_param_count
+   - status_code
+   - response_bytes
+   - request_duration_ms
+   - content_length
+   - header_count
+
+2. Behavioural window (per window):
+   - requests_per_window
+   - requests_per_second
+   - unique_paths
+   - unique_methods
+   - status_4xx_count
+   - status_4xx_ratio
+   - status_5xx_count
+   - status_5xx_ratio
+   - auth_failure_count
+   - mean_request_size
+   - max_request_size
+   - mean_response_time_ms
+   - mean_inter_request_interval_ms
+
+Total: 5 + 13 = 18 features (when both request-level and window features are
+combined). Training and inference must use this exact order.
+
+---
+
+## Preprocessing contract
+
+- Normalization statistics (mean, std per feature) are fitted on training data
+  only.
+- Statistics are saved with the model artifact and applied unchanged at
+  inference.
+- Inference must reject a schema version mismatch.
+- Missing values are replaced per the "Missing value handling" column above
+  before normalization.
