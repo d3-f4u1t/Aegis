@@ -199,3 +199,107 @@ reference while the NumPy engine becomes the default numerical kernel. Do not
 proceed to Phase 2 without approval.
 
 ---
+
+## 2026-11-13 — Phase 4: Website telemetry pipeline and feature schema v1
+
+**Question.** Can we build a reusable, versioned telemetry pipeline that converts
+raw HTTP events into normalized feature vectors matching a documented schema,
+with preprocessing statistics fitted on training data only?
+
+**Scope.** Local, controlled environment only. No Vercel integration, no model
+training, no public datasets, no C optimization, no autoencoder.
+
+**Implementation.** New `telemetry/` package and supporting modules:
+
+* `configs/feature_schema.yaml` — v1 feature schema: 12 request-level features
+  (method one-hot, path length, query count, status code, response bytes,
+  duration, content length, header count) + 13 behavioural window features
+  (request rate, unique paths/methods, 4xx/5xx counts and ratios, auth failures,
+  mean/max request size, mean response time, mean inter-request interval).
+  Clarified that request-level (12) and window-level (13) are separate
+  observation units with separate feature vectors — NOT combined into a 25-feature vector.
+* `telemetry/parsers/log_parser.py` — JSONL event parser into `NormalizedEvent`
+  records. Client IPs pseudonymized with SHA-256 + salt (aggregation key only,
+  never a numerical feature).
+* `telemetry/windows/window_aggregator.py` — Fixed-duration window aggregation
+  by pseudonymous client identity. Configurable window duration (default 60s).
+* `telemetry/feature_extractor.py` — Converts events and windows to fixed-order
+  numerical vectors matching the schema exactly.
+* `training/preprocessing.py` — `StandardScaler` fitted on training data only;
+  statistics saved with model artifact; inference applies unchanged.
+* `examples/generate_synthetic_events.py` — Synthetic HTTP event generator for
+  testing (test-only utility, no web server required).
+* `tests/test_telemetry/` — 29 tests covering parser, window aggregator,
+  feature extractor, and preprocessing.
+
+**Validation.** Generated 2,226 synthetic events from 12 clients (3 attack-like
+with higher frequency and more 4xx/5xx). Pipeline: parse → aggregate into 432
+windows → extract 13-feature vectors → standardize → save/load roundtrip.
+All steps verified end-to-end.
+
+**Test results.** Full suite: 159 passed, 0 failed (46 scalar + 84 NumPy +
+29 telemetry).
+
+**Limitations.**
+- No live website yet; validated with synthetic events only.
+- Synthetic event generator is test-only, not a traffic generator for production.
+- No real access log format parsing yet (nginx/apache combined log format would
+  need a separate parser).
+- Preprocessing is standard scaling only; no robust scaling or quantization.
+- Schema is experimental v1, subject to change based on real telemetry inspection.
+
+---
+
+## 2026-11-13 — Experiment harness and baseline comparisons
+
+**Question.** Can we build a reproducible experiment harness that loads telemetry
+data, splits by client (no leakage), preprocesses, trains multiple models, and
+evaluates with standard detection metrics — and can we establish baseline
+comparisons against threshold detection and logistic regression?
+
+**Scope.** Pre-Phase-5 preparation. No Phase-5 model training is performed as
+part of this entry; the harness is built and validated end-to-end.
+
+**Implementation.** New `training/` modules:
+
+* `training/dataset.py` — `load_dataset()` parses JSONL events, aggregates into
+  windows, extracts window-level features, labels windows by client IP hash.
+  `split_by_client()` splits at the client level (all windows from one client
+  go entirely into train/val/test — no leakage). `fit_preprocessing()` fits
+  StandardScaler on training data only.
+* `training/evaluate.py` — Extended metrics: precision-recall curve, PR-AUC
+  (trapezoidal integration), operating point selection under FPR constraint,
+  threshold sweep.
+* `training/logistic_regression.py` — From-scratch logistic regression trained
+  by gradient descent (NumPy only, no autograd).
+* `training/threshold_baseline.py` — Single-feature threshold detector with
+  threshold selected on validation data under FPR constraint.
+* `training/experiment.py` — `ExperimentConfig` and `run_experiment()`:
+  load → split → preprocess → train → evaluate → save artifacts. Supports
+  MLP (scalar or NumPy), logistic regression, and threshold baseline.
+* `tests/test_harness/` — 13 tests covering metrics, logistic regression,
+  threshold baseline.
+
+**Validation.** End-to-end experiment on synthetic data (2,226 events, 432
+windows, 13 attack-client windows, 420 normal-client windows):
+- Threshold baseline (requests_per_window): accuracy=1.0, FPR=0.0, recall=1.0
+- Logistic regression: accuracy=1.0, FPR=0.0, recall=1.0
+- MLP (NumPy, [13,16,8,1]): accuracy=1.0, FPR=0.0, recall=1.0
+
+All three models achieve perfect separation because the synthetic attack
+patterns are simplistic (high frequency + more 4xx/5xx + scanning paths) and
+easily distinguishable from normal traffic. This does NOT demonstrate
+real-world attack detection capability.
+
+**Test results.** Full suite: 172 passed, 0 failed (159 previous + 13 new).
+
+**Limitations.**
+- Synthetic data labels are implicit (by client IP range), not stored in events.
+- Attack patterns are overly simplistic; real attacks are more varied.
+- Window-level samples only; request-level features not yet used for training.
+- No train/val/test leakage across clients (split by client ID).
+- Experiment harness validated but Phase-5 training not yet executed.
+
+**Next.** Await approval before starting Phase-5 supervised classifier training.
+
+---

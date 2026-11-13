@@ -79,35 +79,38 @@ not distinguished; all events from the same IP key share a window.
 
 ## Feature vector order
 
-The model input vector is constructed in this fixed order:
+There are two separate observation units, each with its own feature vector.
+They are NOT combined into a single 25-feature vector.
 
-1. Request-level (per event):
-   - http_method_GET, http_method_POST, http_method_PUT, http_method_DELETE, http_method_OTHER
-   - path_length
-   - query_param_count
-   - status_code
-   - response_bytes
-   - request_duration_ms
-   - content_length
-   - header_count
+### 1. Request-level feature vector (per event)
 
-2. Behavioural window (per window):
-   - requests_per_window
-   - requests_per_second
-   - unique_paths
-   - unique_methods
-   - status_4xx_count
-   - status_4xx_ratio
-   - status_5xx_count
-   - status_5xx_ratio
-   - auth_failure_count
-   - mean_request_size
-   - max_request_size
-   - mean_response_time_ms
-   - mean_inter_request_interval_ms
+One vector per HTTP request, constructed from request-level features only:
 
-Total: 5 + 13 = 18 features (when both request-level and window features are
-combined). Training and inference must use this exact order.
+    http_method_GET, http_method_POST, http_method_PUT,
+    http_method_DELETE, http_method_OTHER,
+    path_length, query_param_count, status_code,
+    response_bytes, request_duration_ms,
+    content_length, header_count
+
+Total: 12 features. Use `event_to_vector()` to construct.
+
+### 2. Behavioural window feature vector (per window)
+
+One vector per window per client, constructed from behavioural window features only:
+
+    requests_per_window, requests_per_second,
+    unique_paths, unique_methods,
+    status_4xx_count, status_4xx_ratio,
+    status_5xx_count, status_5xx_ratio,
+    auth_failure_count,
+    mean_request_size, max_request_size,
+    mean_response_time_ms, mean_inter_request_interval_ms
+
+Total: 13 features. Use `window_to_vector()` to construct.
+
+Training and inference must use the correct feature order for the chosen
+observation unit. Do not mix request-level and window-level features in the
+same model input.
 
 ---
 

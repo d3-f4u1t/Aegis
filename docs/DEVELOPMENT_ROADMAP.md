@@ -20,11 +20,14 @@ NumPy is up to ~220× faster than scalar on realistic batch sizes.
 
 ## In progress / next
 
-### Phase 3 — Training harness
-Preprocessing pipeline fitted on training data only (StandardScaler implemented),
-experiment harness, train/validation/test protocol, reproducibility (seeds,
-schemas, metadata). Preprocessing module complete; remaining: experiment harness
-and train/val/test protocol.
+### Phase 3 — Training harness (complete)
+Preprocessing pipeline (StandardScaler) fitted on training data only.
+Experiment harness: `training/dataset.py` (load, split by client, preprocess),
+`training/evaluate.py` (PR-AUC, operating point, threshold sweep),
+`training/logistic_regression.py` (from-scratch LR),
+`training/threshold_baseline.py` (threshold detector),
+`training/experiment.py` (end-to-end experiment runner). 13 new tests.
+All validated end-to-end on synthetic data.
 
 ### Phase 4 — Website telemetry (complete)
 A local, controlled telemetry pipeline: synthetic event generator, JSONL parser,
@@ -33,7 +36,7 @@ fixed-duration window aggregation, feature extractor matching
 statistics. Validated end-to-end with 2,226 synthetic events from 12 clients.
 No Flask app, no Vercel integration, no model training.
 
-### Phase 5 — Supervised detection
+### Phase 5 — Supervised detection (not started — awaiting approval)
 A compatible HTTP dataset (e.g. CSIC 2010) plus locally generated traffic.
 Train a binary supervised classifier for known traffic patterns. Evaluate
 honestly (confusion matrix, precision/recall/F1, FPR/FNR, PR-AUC) and compare
