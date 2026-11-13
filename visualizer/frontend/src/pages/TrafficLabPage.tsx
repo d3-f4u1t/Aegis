@@ -1,23 +1,20 @@
 import React, { useEffect, useState } from "react";
 import {
-  AlertTriangle,
+  AlertOctagon,
   ArrowRight,
-  CheckCircle,
   Database,
   Filter,
   Flame,
   Search,
   ShieldAlert,
 } from "lucide-react";
-import { TrafficSampleItem } from "../types";
+import type { TrafficSampleItem } from "../types";
 import { api } from "../services/api";
 
 export const TrafficLabPage: React.FC = () => {
   const [samples, setSamples] = useState<TrafficSampleItem[]>([]);
   const [selectedSample, setSelectedSample] = useState<TrafficSampleItem | null>(null);
   const [scenarioFilter, setScenarioFilter] = useState<string>("all");
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -26,14 +23,10 @@ export const TrafficLabPage: React.FC = () => {
         const s = await api.getTelemetrySamples();
         if (!isMounted) return;
         setSamples(s);
-        // Pre-select failure case if present
         const fail = s.find((item) => item.is_failure_case);
         setSelectedSample(fail || s[0] || null);
       } catch (err: any) {
-        if (!isMounted) return;
-        setError("Failed to load traffic samples: " + err.message);
-      } finally {
-        if (isMounted) setLoading(false);
+        // non-blocking
       }
     }
     loadSamples();
@@ -49,32 +42,36 @@ export const TrafficLabPage: React.FC = () => {
       : samples.filter((s) => s.scenario === scenarioFilter);
 
   return (
-    <div style={{ padding: "1.5rem 2rem", maxWidth: "1350px", margin: "0 auto" }}>
+    <div style={{ padding: "2.5rem", maxWidth: "1440px", margin: "0 auto" }}>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "1.75rem", flexWrap: "wrap", gap: "1rem" }}>
         <div>
-          <h2 style={{ fontSize: "1.5rem", fontWeight: 700, color: "#f8fafc", margin: 0 }}>
-            Traffic Laboratory & Failure Mode Study
+          <div className="section-kicker">Telemetry Laboratory</div>
+          <h2 style={{ fontSize: "1.75rem", fontWeight: 800, color: "#ffffff", letterSpacing: "-0.025em", margin: 0 }}>
+            Traffic Windows &amp; Failure Mode Study
           </h2>
-          <p style={{ fontSize: "0.85rem", color: "#94a3b8", margin: 0 }}>
+          <p style={{ fontSize: "0.875rem", color: "#888888", marginTop: "0.25rem" }}>
             Inspect authentic behavioural windows and investigate the novel zero-error scraping blindspot.
           </p>
         </div>
 
         {/* Filter Dropdown */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <Filter size={16} color="#94a3b8" />
-          <label style={{ fontSize: "0.8rem", color: "#94a3b8" }}>Filter Scenario:</label>
+          <Filter size={14} color="#777777" />
+          <span style={{ fontSize: "0.75rem", color: "#777777", fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>
+            Filter Scenario:
+          </span>
           <select
             value={scenarioFilter}
             onChange={(e) => setScenarioFilter(e.target.value)}
             style={{
-              background: "#1e293b",
-              color: "#f8fafc",
-              border: "1px solid #334155",
+              background: "#111111",
+              color: "#ededed",
+              border: "1px solid rgba(255, 255, 255, 0.12)",
               borderRadius: "6px",
-              padding: "0.35rem 0.75rem",
-              fontSize: "0.8rem",
+              padding: "0.4rem 0.85rem",
+              fontSize: "0.75rem",
+              fontFamily: "var(--font-mono)",
               cursor: "pointer",
             }}
           >
@@ -87,13 +84,25 @@ export const TrafficLabPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Grid: Sample List & Detailed Feature Inspector */}
-      <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: "1.5rem", marginBottom: "1.5rem" }}>
-        {/* Sample List Card */}
-        <div className="card" style={{ maxHeight: "640px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-          <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#f8fafc", marginBottom: "0.25rem" }}>
-            Curated Traffic Windows ({filteredSamples.length})
-          </h3>
+      {/* Main Grid: Sample Stream & Detail Panel */}
+      <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: "1.5rem" }}>
+        {/* Sample List */}
+        <div
+          className="card"
+          style={{
+            maxHeight: "680px",
+            overflowY: "auto",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.6rem",
+            padding: "1rem",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.25rem", padding: "0 0.25rem" }}>
+            <span style={{ fontSize: "0.6875rem", fontFamily: "var(--font-mono)", color: "#777777", textTransform: "uppercase" }}>
+              Curated Windows ({filteredSamples.length})
+            </span>
+          </div>
 
           {filteredSamples.map((sample) => {
             const isSelected = selectedSample?.sample_id === sample.sample_id;
@@ -105,34 +114,34 @@ export const TrafficLabPage: React.FC = () => {
                 onClick={() => setSelectedSample(sample)}
                 style={{
                   background: isSelected
-                    ? "rgba(56, 189, 248, 0.12)"
+                    ? "rgba(0, 240, 255, 0.08)"
                     : sample.is_failure_case
-                    ? "rgba(239, 68, 68, 0.08)"
-                    : "#0e1420",
-                  padding: "0.75rem",
-                  borderRadius: "8px",
+                    ? "rgba(255, 51, 102, 0.06)"
+                    : "#080808",
+                  padding: "0.85rem",
+                  borderRadius: "6px",
                   border: isSelected
-                    ? "1px solid #38bdf8"
+                    ? "1px solid #00f0ff"
                     : sample.is_failure_case
-                    ? "1px solid #ef4444"
-                    : "1px solid #1e293b",
+                    ? "1px solid #ff3366"
+                    : "1px solid rgba(255, 255, 255, 0.06)",
                   cursor: "pointer",
                   transition: "all 0.15s ease",
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.3rem" }}>
-                  <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#f8fafc", fontFamily: "monospace" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.35rem" }}>
+                  <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#ffffff", fontFamily: "var(--font-mono)" }}>
                     {sample.scenario}
                   </span>
                   {sample.is_failure_case ? (
-                    <span className="badge badge-attack" style={{ fontSize: "0.65rem" }}>FAILURE CASE</span>
+                    <span className="badge badge-attack" style={{ fontSize: "0.6rem" }}>BLINDSPOT</span>
                   ) : isAttack ? (
-                    <span className="badge badge-attack" style={{ fontSize: "0.65rem" }}>ATTACK</span>
+                    <span className="badge badge-attack" style={{ fontSize: "0.6rem" }}>ATTACK</span>
                   ) : (
-                    <span className="badge badge-normal" style={{ fontSize: "0.65rem" }}>NORMAL</span>
+                    <span className="badge badge-normal" style={{ fontSize: "0.6rem" }}>NORMAL</span>
                   )}
                 </div>
-                <p style={{ fontSize: "0.75rem", color: "#94a3b8", margin: 0, lineHeight: 1.4 }}>
+                <p style={{ fontSize: "0.75rem", color: "#888888", margin: 0, lineHeight: 1.4 }}>
                   {sample.description}
                 </p>
               </div>
@@ -140,46 +149,48 @@ export const TrafficLabPage: React.FC = () => {
           })}
         </div>
 
-        {/* Selected Sample Inspection & Failure Analysis */}
+        {/* Selected Sample Detail */}
         {selectedSample && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-            {/* Failure Analysis Alert Banner (if failure case) */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+            {/* Failure Mode Case Study Alert */}
             {selectedSample.is_failure_case && (
               <div
                 className="card"
                 style={{
-                  borderLeft: "4px solid #ef4444",
-                  background: "linear-gradient(90deg, rgba(239, 68, 68, 0.12), transparent)",
-                  padding: "1.25rem",
+                  borderLeft: "3px solid #ff3366",
+                  background: "linear-gradient(135deg, rgba(255, 51, 102, 0.08) 0%, rgba(10, 10, 10, 0.95) 100%)",
+                  padding: "1.5rem",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
-                  <AlertTriangle size={24} color="#ef4444" style={{ flexShrink: 0, marginTop: "0.15rem" }} />
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "1rem" }}>
+                  <AlertOctagon size={24} color="#ff3366" style={{ flexShrink: 0, marginTop: "0.15rem" }} />
                   <div>
-                    <h4 style={{ fontSize: "1rem", fontWeight: 700, color: "#f8fafc", marginBottom: "0.25rem" }}>
-                      Academic Finding: Supervised Model Blindspot on High-Volume Scraping
+                    <h4 style={{ fontSize: "1.0625rem", fontWeight: 700, color: "#ffffff", marginBottom: "0.35rem", letterSpacing: "-0.01em" }}>
+                      Academic Finding: Supervised Neural Network Scraping Blindspot
                     </h4>
-                    <p style={{ fontSize: "0.85rem", color: "#cbd5e1", lineHeight: 1.5, marginBottom: "0.5rem" }}>
+                    <p style={{ fontSize: "0.8125rem", color: "#b5b5b5", lineHeight: 1.6, marginBottom: "0.65rem" }}>
                       {selectedSample.failure_explanation}
                     </p>
-                    <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
-                      <strong>Failed Model:</strong> {selectedSample.failure_model} &bull;{" "}
-                      <strong>Ground Truth:</strong> 1 (Attack) &bull; <strong>Predicted:</strong> 0 (Normal, p &lt; 0.01)
+                    <div style={{ fontSize: "0.75rem", color: "#777777", fontFamily: "var(--font-mono)" }}>
+                      MODEL: <span style={{ color: "#ededed" }}>{selectedSample.failure_model}</span> &bull;{" "}
+                      GROUND TRUTH: <span style={{ color: "#ff3366" }}>1 (ATTACK)</span> &bull;{" "}
+                      PREDICTED: <span style={{ color: "#00f5a0" }}>0 (NORMAL, p &lt; 0.01)</span>
                     </div>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Feature Values Breakdown */}
+            {/* 13 Feature Breakdown Card */}
             <div className="card">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.25rem", flexWrap: "wrap", gap: "1rem" }}>
                 <div>
-                  <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "#f8fafc", margin: 0 }}>
-                    13-Feature Window Representation ({selectedSample.scenario})
+                  <div className="section-kicker">Window Features</div>
+                  <h3 style={{ fontSize: "1.125rem", fontWeight: 700, color: "#ffffff", margin: "0.2rem 0", letterSpacing: "-0.01em" }}>
+                    13-Feature Behavioural Profile ({selectedSample.scenario})
                   </h3>
-                  <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
-                    Client IP Hash: <code className="font-mono">{selectedSample.client_ip_hash}</code> &bull; Window: {selectedSample.window_start_utc}
+                  <span style={{ fontSize: "0.75rem", color: "#777777", fontFamily: "var(--font-mono)" }}>
+                    CLIENT: {selectedSample.client_ip_hash} &bull; TIMESTAMP: {selectedSample.window_start_utc}
                   </span>
                 </div>
                 <span className={selectedSample.ground_truth_label === 1 ? "badge badge-attack" : "badge badge-normal"}>
@@ -187,38 +198,38 @@ export const TrafficLabPage: React.FC = () => {
                 </span>
               </div>
 
-              {/* Features Grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "0.75rem" }}>
+              {/* Feature Grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "0.85rem" }}>
                 {selectedSample.feature_names.map((name, idx) => {
                   const rawVal = selectedSample.raw_features[idx];
                   const zVal = selectedSample.scaled_features[idx];
-                  const isHighZ = Math.abs(zVal) > 1.5;
+                  const isElevated = Math.abs(zVal) > 1.5;
 
                   return (
                     <div
-                      key={`feat-box-${idx}`}
+                      key={`feat-${idx}`}
                       style={{
-                        background: "#0e1420",
-                        padding: "0.6rem 0.85rem",
+                        background: "#080808",
+                        padding: "0.85rem 1rem",
                         borderRadius: "6px",
-                        border: isHighZ ? "1px solid #38bdf8" : "1px solid #1e293b",
+                        border: isElevated ? "1px solid rgba(0, 240, 255, 0.3)" : "1px solid rgba(255, 255, 255, 0.06)",
                       }}
                     >
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.2rem" }}>
-                        <span style={{ fontSize: "0.75rem", color: "#cbd5e1", fontFamily: "monospace" }}>
-                          {name}
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.35rem" }}>
+                        <span style={{ fontSize: "0.75rem", color: "#a1a1a1", fontFamily: "var(--font-mono)" }}>
+                          [{idx.toString().padStart(2, "0")}] {name}
                         </span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                        <span style={{ fontSize: "0.7rem", color: "#64748b" }}>
-                          Raw: <code className="font-mono" style={{ color: "#94a3b8" }}>{rawVal.toFixed(2)}</code>
+                        <span style={{ fontSize: "0.75rem", color: "#666666", fontFamily: "var(--font-mono)" }}>
+                          Raw: <span style={{ color: "#888888" }}>{rawVal.toFixed(2)}</span>
                         </span>
                         <span
                           style={{
-                            fontSize: "0.85rem",
+                            fontSize: "0.875rem",
                             fontWeight: 700,
-                            fontFamily: "monospace",
-                            color: isHighZ ? "#38bdf8" : "#94a3b8",
+                            fontFamily: "var(--font-mono)",
+                            color: isElevated ? "#00f0ff" : "#ededed",
                           }}
                         >
                           z={zVal.toFixed(3)}

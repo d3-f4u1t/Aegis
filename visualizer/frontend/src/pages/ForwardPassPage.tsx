@@ -1,17 +1,19 @@
 import React, { useEffect, useState } from "react";
 import {
   Activity,
-  AlertCircle,
   ArrowLeft,
   ArrowRight,
-  CheckCircle,
+  Check,
+  CheckCircle2,
+  Clock,
   Pause,
   Play,
   RotateCcw,
   ShieldAlert,
+  Sparkles,
   Zap,
 } from "lucide-react";
-import { ForwardTraceResult, TrafficSampleItem } from "../types";
+import type { ForwardTraceResult, TrafficSampleItem } from "../types";
 import { api } from "../services/api";
 
 interface ForwardPassPageProps {
@@ -29,7 +31,6 @@ export const ForwardPassPage: React.FC<ForwardPassPageProps> = ({ modelId }) => 
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load curated samples
   useEffect(() => {
     let isMounted = true;
     async function loadSamples() {
@@ -52,7 +53,6 @@ export const ForwardPassPage: React.FC<ForwardPassPageProps> = ({ modelId }) => 
     };
   }, []);
 
-  // Run forward trace whenever features, threshold, or modelId change
   useEffect(() => {
     let isMounted = true;
     async function runTrace() {
@@ -76,7 +76,6 @@ export const ForwardPassPage: React.FC<ForwardPassPageProps> = ({ modelId }) => 
     };
   }, [modelId, currentFeatures, threshold]);
 
-  // Handle sample selection change
   const handleSampleChange = (sId: string) => {
     setSelectedSampleId(sId);
     const chosen = samples.find((s) => s.sample_id === sId);
@@ -86,8 +85,7 @@ export const ForwardPassPage: React.FC<ForwardPassPageProps> = ({ modelId }) => 
     }
   };
 
-  // Playback timer
-  const maxSteps = trace ? trace.layers.length + 1 : 0; // step 0 is input, then each layer, then final decision
+  const maxSteps = trace ? trace.layers.length + 1 : 0;
 
   useEffect(() => {
     if (!isPlaying) return;
@@ -99,76 +97,86 @@ export const ForwardPassPage: React.FC<ForwardPassPageProps> = ({ modelId }) => 
         }
         return prev + 1;
       });
-    }, 1400);
+    }, 1300);
     return () => clearInterval(interval);
   }, [isPlaying, maxSteps]);
 
   const activeSample = samples.find((s) => s.sample_id === selectedSampleId);
 
   return (
-    <div style={{ padding: "1.5rem 2rem", maxWidth: "1350px", margin: "0 auto" }}>
+    <div style={{ padding: "2.5rem", maxWidth: "1440px", margin: "0 auto" }}>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "1.75rem", flexWrap: "wrap", gap: "1rem" }}>
         <div>
-          <h2 style={{ fontSize: "1.5rem", fontWeight: 700, color: "#f8fafc", margin: 0 }}>
-            Step-by-Step Forward Propagation Tracer
+          <div className="section-kicker">Observable Inference Engine</div>
+          <h2 style={{ fontSize: "1.75rem", fontWeight: 800, color: "#ffffff", letterSpacing: "-0.025em", margin: 0 }}>
+            Forward Propagation Tracer
           </h2>
-          <p style={{ fontSize: "0.85rem", color: "#94a3b8", margin: 0 }}>
-            Observable execution trace computing exact weighted sums Z and post-activation values A.
+          <p style={{ fontSize: "0.875rem", color: "#888888", marginTop: "0.25rem" }}>
+            Step-by-step layer computations exposing intermediate weighted sums Z and post-activation values A.
           </p>
         </div>
 
-        {/* Engine Parity Badge */}
+        {/* Parity Status Badge */}
         {trace && (
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
             <span
               className={trace.parity_verified ? "badge badge-normal" : "badge badge-attack"}
-              style={{ fontSize: "0.8rem", padding: "0.35rem 0.75rem" }}
+              style={{ fontSize: "0.75rem", padding: "0.35rem 0.85rem" }}
             >
-              <CheckCircle size={14} /> Mathematical Parity Verified (&lt; 10⁻¹¹)
+              <Check size={13} /> Mathematical Parity Verified (&lt; 10⁻¹¹)
             </span>
-            <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
-              Latency: {trace.inference_time_ms.toFixed(3)} ms
+            <span style={{ fontSize: "0.75rem", color: "#777777", fontFamily: "var(--font-mono)" }}>
+              LATENCY: {trace.inference_time_ms.toFixed(3)} ms
             </span>
           </div>
         )}
       </div>
 
-      {/* Traffic Sample & Threshold Controls Card */}
-      <div className="card" style={{ marginBottom: "1.25rem" }}>
-        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
-          {/* Sample Selector */}
+      {/* Control Station Card */}
+      <div
+        className="card"
+        style={{
+          background: "#080808",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+          marginBottom: "1.5rem",
+          padding: "1.25rem 1.5rem",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1.25rem" }}>
+          {/* Sample Picker */}
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-            <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#cbd5e1" }}>
-              Curated Traffic Window:
-            </label>
+            <span style={{ fontSize: "0.75rem", color: "#777777", textTransform: "uppercase", fontFamily: "var(--font-mono)" }}>
+              Traffic Sample:
+            </span>
             <select
               value={selectedSampleId}
               onChange={(e) => handleSampleChange(e.target.value)}
               style={{
-                background: "#1e293b",
-                color: "#f8fafc",
-                border: "1px solid #334155",
+                background: "#111111",
+                color: "#ededed",
+                border: "1px solid rgba(255, 255, 255, 0.12)",
                 borderRadius: "6px",
-                padding: "0.4rem 0.75rem",
-                fontSize: "0.85rem",
+                padding: "0.45rem 0.85rem",
+                fontSize: "0.8125rem",
+                fontFamily: "var(--font-mono)",
                 cursor: "pointer",
-                minWidth: "300px",
+                minWidth: "320px",
               }}
             >
               {samples.map((s) => (
                 <option key={s.sample_id} value={s.sample_id}>
-                  {s.scenario} &bull; {s.source.toUpperCase()} (GT: {s.ground_truth_label})
+                  {s.scenario} &bull; {s.source.toUpperCase()}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Classification Threshold Slider */}
+          {/* Decision Threshold Slider */}
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-            <label style={{ fontSize: "0.85rem", color: "#cbd5e1" }}>
-              Decision Threshold (τ = {threshold.toFixed(2)}):
-            </label>
+            <span style={{ fontSize: "0.75rem", color: "#777777", textTransform: "uppercase", fontFamily: "var(--font-mono)" }}>
+              Decision Threshold (&tau; = {threshold.toFixed(2)}):
+            </span>
             <input
               type="range"
               min="0.05"
@@ -176,11 +184,11 @@ export const ForwardPassPage: React.FC<ForwardPassPageProps> = ({ modelId }) => 
               step="0.05"
               value={threshold}
               onChange={(e) => setThreshold(parseFloat(e.target.value))}
-              style={{ width: "120px", cursor: "pointer" }}
+              style={{ width: "120px", cursor: "pointer", accentColor: "#00f5a0" }}
             />
           </div>
 
-          {/* Stepper Playback Controls */}
+          {/* Stepper Transport Controls */}
           <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
             <button
               className="btn btn-secondary"
@@ -188,9 +196,10 @@ export const ForwardPassPage: React.FC<ForwardPassPageProps> = ({ modelId }) => 
                 setIsPlaying(false);
                 setCurrentStep(0);
               }}
-              title="Reset"
+              title="Reset to Input"
+              style={{ padding: "0.45rem 0.65rem" }}
             >
-              <RotateCcw size={15} />
+              <RotateCcw size={14} />
             </button>
             <button
               className="btn btn-secondary"
@@ -199,8 +208,9 @@ export const ForwardPassPage: React.FC<ForwardPassPageProps> = ({ modelId }) => 
                 setIsPlaying(false);
                 setCurrentStep((p) => Math.max(0, p - 1));
               }}
+              style={{ padding: "0.45rem 0.85rem" }}
             >
-              <ArrowLeft size={15} /> Prev
+              <ArrowLeft size={14} /> Prev
             </button>
             <button
               className="btn btn-primary"
@@ -208,8 +218,9 @@ export const ForwardPassPage: React.FC<ForwardPassPageProps> = ({ modelId }) => 
                 if (currentStep >= maxSteps) setCurrentStep(0);
                 setIsPlaying(!isPlaying);
               }}
+              style={{ padding: "0.45rem 1rem" }}
             >
-              {isPlaying ? <Pause size={15} /> : <Play size={15} />}
+              {isPlaying ? <Pause size={14} /> : <Play size={14} />}
               {isPlaying ? "Pause" : "Play"}
             </button>
             <button
@@ -219,66 +230,85 @@ export const ForwardPassPage: React.FC<ForwardPassPageProps> = ({ modelId }) => 
                 setIsPlaying(false);
                 setCurrentStep((p) => Math.min(maxSteps, p + 1));
               }}
+              style={{ padding: "0.45rem 0.85rem" }}
             >
-              Next <ArrowRight size={15} />
+              Next <ArrowRight size={14} />
             </button>
           </div>
         </div>
 
-        {/* Selected Sample Context Banner */}
+        {/* Active Sample Context Bar */}
         {activeSample && (
-          <div style={{ marginTop: "0.75rem", paddingTop: "0.75rem", borderTop: "1px solid #243042", fontSize: "0.8rem", color: "#94a3b8", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>
-              <strong>Scenario:</strong> {activeSample.scenario} &bull; <strong>Ground Truth:</strong>{" "}
+          <div
+            style={{
+              marginTop: "0.85rem",
+              paddingTop: "0.85rem",
+              borderTop: "1px solid rgba(255, 255, 255, 0.05)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              fontSize: "0.8125rem",
+              color: "#888888",
+            }}
+          >
+            <div>
+              <strong style={{ color: "#ffffff" }}>Scenario:</strong> {activeSample.scenario} &bull;{" "}
+              <strong>Ground Truth:</strong>{" "}
               {activeSample.ground_truth_label === 1 ? (
-                <span className="badge badge-attack" style={{ fontSize: "0.7rem" }}>ATTACK (1)</span>
+                <span className="badge badge-attack" style={{ fontSize: "0.65rem" }}>ATTACK (1)</span>
               ) : (
-                <span className="badge badge-normal" style={{ fontSize: "0.7rem" }}>NORMAL (0)</span>
+                <span className="badge badge-normal" style={{ fontSize: "0.65rem" }}>NORMAL (0)</span>
               )}
               {" "}&bull; {activeSample.description}
-            </span>
+            </div>
             {activeSample.is_failure_case && (
-              <span className="badge badge-attack">Failure Study Sample</span>
+              <span className="badge badge-attack">Failure Case Study</span>
             )}
           </div>
         )}
       </div>
 
-      {/* Stepper Progress Bar */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.25rem" }}>
+      {/* Stepper Timeline Pipeline */}
+      <div style={{ display: "flex", gap: "0.4rem", marginBottom: "1.75rem", overflowX: "auto" }}>
         {Array.from({ length: maxSteps + 1 }).map((_, stepIdx) => {
           const isActive = currentStep === stepIdx;
           const isPassed = currentStep > stepIdx;
           const stepLabel =
             stepIdx === 0
-              ? "0: Input Vector"
+              ? "00: Input Feature Vector"
               : stepIdx === maxSteps
-              ? `${stepIdx}: Classification`
-              : `${stepIdx}: Layer ${stepIdx}`;
+              ? `0${stepIdx}: Classification Decision`
+              : `0${stepIdx}: Layer ${stepIdx} Propagation`;
 
           return (
             <button
-              key={`step-btn-${stepIdx}`}
+              key={`step-${stepIdx}`}
               onClick={() => {
                 setIsPlaying(false);
                 setCurrentStep(stepIdx);
               }}
               style={{
                 flex: 1,
-                padding: "0.5rem 0.75rem",
+                padding: "0.6rem 0.75rem",
                 borderRadius: "6px",
                 border: isActive
-                  ? "1px solid #38bdf8"
+                  ? "1px solid #00f0ff"
                   : isPassed
-                  ? "1px solid #22c55e"
-                  : "1px solid #243042",
-                background: isActive ? "rgba(56, 189, 248, 0.15)" : isPassed ? "#13211a" : "#111827",
-                color: isActive ? "#38bdf8" : isPassed ? "#4ade80" : "#64748b",
-                fontWeight: isActive ? 700 : 500,
+                  ? "1px solid rgba(0, 245, 160, 0.4)"
+                  : "1px solid rgba(255, 255, 255, 0.06)",
+                background: isActive
+                  ? "rgba(0, 240, 255, 0.08)"
+                  : isPassed
+                  ? "rgba(0, 245, 160, 0.04)"
+                  : "#090909",
+                color: isActive ? "#00f0ff" : isPassed ? "#00f5a0" : "#666666",
+                fontWeight: isActive ? 600 : 500,
                 fontSize: "0.75rem",
+                fontFamily: "var(--font-mono)",
                 cursor: "pointer",
                 textAlign: "center",
                 transition: "all 0.15s ease",
+                whiteSpace: "nowrap",
               }}
             >
               {stepLabel}
@@ -287,45 +317,54 @@ export const ForwardPassPage: React.FC<ForwardPassPageProps> = ({ modelId }) => 
         })}
       </div>
 
-      {/* Step Content Render */}
+      {/* Step Renderings */}
       {trace && (
         <div>
           {/* STEP 0: Input Features */}
           {currentStep === 0 && (
             <div className="card">
-              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#f8fafc", marginBottom: "0.5rem" }}>
-                Step 0: Input Behavioural Window Features (13 Features)
+              <div className="section-kicker">Step 00 &bull; Feature Ingestion</div>
+              <h3 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#ffffff", marginBottom: "0.5rem", letterSpacing: "-0.02em" }}>
+                13-Feature Behavioural Representation
               </h3>
-              <p style={{ fontSize: "0.85rem", color: "#94a3b8", marginBottom: "1rem" }}>
-                Features extracted from a 60-second window, normalized using training-fitted StandardScaler statistics:
-                <code className="font-mono"> x_scaled = (x - mean) / std</code>.
+              <p style={{ fontSize: "0.8125rem", color: "#888888", marginBottom: "1.5rem" }}>
+                Normalized using training-set StandardScaler parameters: <code className="font-mono">z = (x - &mu;) / &sigma;</code>.
               </p>
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "0.75rem" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "0.85rem" }}>
                 {trace.feature_names.map((name, idx) => {
                   const rawVal = trace.raw_features[idx];
                   const scaledVal = trace.scaled_features[idx];
+                  const isElevated = Math.abs(scaledVal) > 1.5;
+
                   return (
                     <div
                       key={`feat-${idx}`}
                       style={{
-                        background: "#0e1420",
-                        padding: "0.6rem 0.85rem",
-                        borderRadius: "8px",
-                        border: "1px solid #1e293b",
+                        background: "#080808",
+                        padding: "0.85rem 1rem",
+                        borderRadius: "6px",
+                        border: isElevated ? "1px solid rgba(0, 240, 255, 0.3)" : "1px solid rgba(255, 255, 255, 0.06)",
                       }}
                     >
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.25rem" }}>
-                        <span style={{ fontSize: "0.75rem", color: "#cbd5e1", fontFamily: "monospace" }}>
-                          [{idx}] {name}
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.35rem" }}>
+                        <span style={{ fontSize: "0.75rem", color: "#a1a1a1", fontFamily: "var(--font-mono)" }}>
+                          [{idx.toString().padStart(2, "0")}] {name}
                         </span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                        <span style={{ fontSize: "0.7rem", color: "#64748b" }}>
-                          Raw: <code className="font-mono" style={{ color: "#94a3b8" }}>{rawVal.toFixed(3)}</code>
+                        <span style={{ fontSize: "0.75rem", color: "#666666", fontFamily: "var(--font-mono)" }}>
+                          Raw: <span style={{ color: "#888888" }}>{rawVal.toFixed(3)}</span>
                         </span>
-                        <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#38bdf8", fontFamily: "monospace" }}>
-                          z: {scaledVal.toFixed(4)}
+                        <span
+                          style={{
+                            fontSize: "0.9375rem",
+                            fontWeight: 700,
+                            fontFamily: "var(--font-mono)",
+                            color: isElevated ? "#00f0ff" : "#ededed",
+                          }}
+                        >
+                          z={scaledVal.toFixed(4)}
                         </span>
                       </div>
                     </div>
@@ -341,12 +380,13 @@ export const ForwardPassPage: React.FC<ForwardPassPageProps> = ({ modelId }) => 
               const layer = trace.layers[currentStep - 1];
               return (
                 <div className="card">
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.25rem", flexWrap: "wrap", gap: "1rem" }}>
                     <div>
-                      <h3 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#f8fafc", margin: 0 }}>
-                        Step {currentStep}: Layer {layer.layer_idx} ({layer.layer_type.toUpperCase()}) &bull; Activation: {layer.activation}
+                      <div className="section-kicker">Step 0{currentStep} &bull; Dense Layer Computation</div>
+                      <h3 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#ffffff", margin: "0.2rem 0", letterSpacing: "-0.02em" }}>
+                        Layer {layer.layer_idx} ({layer.layer_type.toUpperCase()}) &bull; Activation: {layer.activation.toUpperCase()}
                       </h3>
-                      <p style={{ fontSize: "0.8rem", color: "#38bdf8", fontFamily: "monospace", margin: "0.25rem 0 0 0" }}>
+                      <p style={{ fontSize: "0.75rem", color: "#00f0ff", fontFamily: "var(--font-mono)", margin: "0.35rem 0 0 0" }}>
                         Formula: {layer.mathematical_formula}
                       </p>
                     </div>
@@ -360,8 +400,8 @@ export const ForwardPassPage: React.FC<ForwardPassPageProps> = ({ modelId }) => 
                     style={{
                       display: "grid",
                       gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-                      gap: "0.75rem",
-                      maxHeight: "520px",
+                      gap: "0.85rem",
+                      maxHeight: "560px",
                       overflowY: "auto",
                       paddingRight: "0.25rem",
                     }}
@@ -374,36 +414,37 @@ export const ForwardPassPage: React.FC<ForwardPassPageProps> = ({ modelId }) => 
                         <div
                           key={`step-${currentStep}-n-${neuron.neuron_idx}`}
                           style={{
-                            background: isDead ? "#0f131a" : "#0e1826",
-                            padding: "0.75rem",
-                            borderRadius: "8px",
-                            border: isDead ? "1px solid #1e2633" : "1px solid #1d4ed8",
+                            background: isDead ? "#080808" : "#0d1117",
+                            padding: "0.85rem",
+                            borderRadius: "6px",
+                            border: isDead ? "1px solid rgba(255, 255, 255, 0.05)" : "1px solid rgba(0, 240, 255, 0.25)",
+                            boxShadow: neuron.is_active ? "0 0 16px -4px rgba(0, 240, 255, 0.15)" : "none",
                           }}
                         >
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
-                            <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#f8fafc" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                            <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#ffffff", fontFamily: "var(--font-mono)" }}>
                               Neuron #{neuron.neuron_idx}
                             </span>
                             <span
-                              className={neuron.is_active ? "badge badge-normal" : "badge badge-secondary"}
-                              style={{ fontSize: "0.65rem", padding: "0.15rem 0.45rem" }}
+                              className={neuron.is_active ? "badge badge-normal" : "badge badge-neutral"}
+                              style={{ fontSize: "0.625rem" }}
                             >
                               {neuron.is_active ? "ACTIVE" : "INACTIVE (0)"}
                             </span>
                           </div>
 
-                          <div style={{ fontSize: "0.75rem", display: "grid", gap: "0.2rem", fontFamily: "monospace" }}>
+                          <div style={{ fontSize: "0.75rem", display: "grid", gap: "0.25rem", fontFamily: "var(--font-mono)" }}>
                             <div style={{ display: "flex", justifyContent: "space-between" }}>
-                              <span style={{ color: "#94a3b8" }}>Weighted Sum (z):</span>
-                              <span style={{ color: "#cbd5e1", fontWeight: 600 }}>{neuron.z.toFixed(4)}</span>
+                              <span style={{ color: "#666666" }}>Weighted Sum (z):</span>
+                              <span style={{ color: "#ededed", fontWeight: 600 }}>{neuron.z.toFixed(4)}</span>
                             </div>
                             <div style={{ display: "flex", justifyContent: "space-between" }}>
-                              <span style={{ color: "#94a3b8" }}>Bias (b):</span>
-                              <span style={{ color: "#64748b" }}>{neuron.bias.toFixed(4)}</span>
+                              <span style={{ color: "#666666" }}>Bias (b):</span>
+                              <span style={{ color: "#888888" }}>{neuron.bias.toFixed(4)}</span>
                             </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", paddingTop: "0.2rem", borderTop: "1px solid #243042" }}>
-                              <span style={{ color: "#38bdf8", fontWeight: 600 }}>Activation a = f(z):</span>
-                              <span style={{ color: neuron.a > 0 ? "#4ade80" : "#64748b", fontWeight: 700 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", paddingTop: "0.35rem", borderTop: "1px solid rgba(255, 255, 255, 0.06)" }}>
+                              <span style={{ color: "#00f0ff" }}>Output a = f(z):</span>
+                              <span style={{ color: neuron.a > 0 ? "#00f5a0" : "#666666", fontWeight: 700 }}>
                                 {neuron.a.toFixed(5)}
                               </span>
                             </div>
@@ -420,79 +461,90 @@ export const ForwardPassPage: React.FC<ForwardPassPageProps> = ({ modelId }) => 
           {/* FINAL STEP: Classification Decision */}
           {currentStep === maxSteps && (
             <div className="card">
-              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#f8fafc", marginBottom: "0.75rem" }}>
-                Final Classification Decision
+              <div className="section-kicker">Final Stage &bull; Classification Verdict</div>
+              <h3 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#ffffff", marginBottom: "1.25rem", letterSpacing: "-0.02em" }}>
+                Inference Result &amp; Margin
               </h3>
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.25rem", marginBottom: "1.5rem" }}>
-                <div style={{ background: "#0e1420", padding: "1.25rem", borderRadius: "8px", border: "1px solid #243042" }}>
-                  <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>Output Logit (z):</span>
-                  <p style={{ fontSize: "1.5rem", fontWeight: 700, color: "#cbd5e1", margin: "0.25rem 0", fontFamily: "monospace" }}>
+                <div style={{ background: "#080808", padding: "1.25rem", borderRadius: "6px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
+                  <span style={{ fontSize: "0.6875rem", color: "#777777", fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>
+                    Output Logit (z)
+                  </span>
+                  <div style={{ fontSize: "1.75rem", fontWeight: 700, color: "#ededed", margin: "0.35rem 0", fontFamily: "var(--font-mono)" }}>
                     {trace.logit.toFixed(5)}
-                  </p>
-                  <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Linear output from final dense layer</span>
+                  </div>
+                  <span style={{ fontSize: "0.75rem", color: "#666666" }}>Linear output from final dense layer</span>
                 </div>
 
-                <div style={{ background: "#0e1420", padding: "1.25rem", borderRadius: "8px", border: "1px solid #243042" }}>
-                  <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>Predicted Probability P(attack):</span>
-                  <p style={{ fontSize: "1.5rem", fontWeight: 700, color: "#38bdf8", margin: "0.25rem 0", fontFamily: "monospace" }}>
-                    {(trace.probability * 100).toFixed(2)}% ({trace.probability.toFixed(6)})
-                  </p>
-                  <span style={{ fontSize: "0.75rem", color: "#64748b" }}>p = σ(z) = 1 / (1 + e^(-z))</span>
+                <div style={{ background: "#080808", padding: "1.25rem", borderRadius: "6px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
+                  <span style={{ fontSize: "0.6875rem", color: "#777777", fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>
+                    Predicted Probability P(attack)
+                  </span>
+                  <div style={{ fontSize: "1.75rem", fontWeight: 700, color: "#00f0ff", margin: "0.35rem 0", fontFamily: "var(--font-mono)" }}>
+                    {(trace.probability * 100).toFixed(2)}%
+                  </div>
+                  <span style={{ fontSize: "0.75rem", color: "#666666", fontFamily: "var(--font-mono)" }}>
+                    p = &sigma;(z) = {trace.probability.toFixed(6)}
+                  </span>
                 </div>
 
-                <div style={{ background: "#0e1420", padding: "1.25rem", borderRadius: "8px", border: "1px solid #243042" }}>
-                  <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>Decision Rule (τ = {trace.threshold}):</span>
-                  <div style={{ margin: "0.25rem 0" }}>
+                <div style={{ background: "#080808", padding: "1.25rem", borderRadius: "6px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
+                  <span style={{ fontSize: "0.6875rem", color: "#777777", fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>
+                    Classification Verdict
+                  </span>
+                  <div style={{ margin: "0.45rem 0" }}>
                     {trace.prediction === 1 ? (
-                      <span className="badge badge-attack" style={{ fontSize: "1rem", padding: "0.4rem 0.8rem" }}>
-                        FLAGGED: ATTACK
+                      <span className="badge badge-attack" style={{ fontSize: "0.9375rem", padding: "0.4rem 0.85rem" }}>
+                        FLAGGED : ATTACK
                       </span>
                     ) : (
-                      <span className="badge badge-normal" style={{ fontSize: "1rem", padding: "0.4rem 0.8rem" }}>
-                        CLEARED: NORMAL
+                      <span className="badge badge-normal" style={{ fontSize: "0.9375rem", padding: "0.4rem 0.85rem" }}>
+                        CLEARED : NORMAL
                       </span>
                     )}
                   </div>
-                  <span style={{ fontSize: "0.75rem", color: "#64748b" }}>p ≥ τ → Attack (1), else Normal (0)</span>
+                  <span style={{ fontSize: "0.75rem", color: "#666666", fontFamily: "var(--font-mono)" }}>
+                    Rule: p &ge; {trace.threshold.toFixed(2)} &rarr; Attack
+                  </span>
                 </div>
               </div>
 
-              {/* Confidence Meter */}
-              <div style={{ background: "#0e1420", padding: "1rem", borderRadius: "8px", border: "1px solid #1e293b" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.4rem", fontSize: "0.8rem" }}>
-                  <span style={{ color: "#94a3b8" }}>Classification Margin from Decision Threshold:</span>
-                  <span style={{ color: "#f8fafc", fontWeight: 600, fontFamily: "monospace" }}>
-                    |p - τ| = {Math.abs(trace.probability - trace.threshold).toFixed(4)}
+              {/* Decision Margin Gauge */}
+              <div style={{ background: "#080808", padding: "1.25rem", borderRadius: "6px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem", fontSize: "0.8125rem" }}>
+                  <span style={{ color: "#888888" }}>Decision Margin Distance:</span>
+                  <span style={{ color: "#ffffff", fontFamily: "var(--font-mono)", fontWeight: 600 }}>
+                    |p - &tau;| = {Math.abs(trace.probability - trace.threshold).toFixed(4)}
                   </span>
                 </div>
-                <div style={{ width: "100%", height: "10px", background: "#1e293b", borderRadius: "5px", position: "relative" }}>
+                <div style={{ width: "100%", height: "8px", background: "#1a1a1a", borderRadius: "4px", position: "relative" }}>
                   <div
                     style={{
                       position: "absolute",
-                      top: 0,
-                      bottom: 0,
+                      top: "-2px",
+                      bottom: "-2px",
                       left: "50%",
                       width: "2px",
-                      background: "#f59e0b",
+                      background: "#f5a623",
                       zIndex: 2,
                     }}
-                    title="Threshold 0.5"
+                    title="Threshold 0.50"
                   />
                   <div
                     style={{
                       height: "100%",
                       width: `${Math.min(100, Math.max(0, trace.probability * 100))}%`,
-                      background: trace.prediction === 1 ? "#ef4444" : "#10b981",
-                      borderRadius: "5px",
+                      background: trace.prediction === 1 ? "#ff3366" : "#00f5a0",
+                      borderRadius: "4px",
                       transition: "width 0.3s ease",
                     }}
                   />
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.3rem", fontSize: "0.7rem", color: "#64748b" }}>
-                  <span>0.0 (Definitely Normal)</span>
-                  <span style={{ color: "#f59e0b" }}>τ = {trace.threshold.toFixed(2)}</span>
-                  <span>1.0 (Definitely Attack)</span>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.4rem", fontSize: "0.6875rem", fontFamily: "var(--font-mono)", color: "#666666" }}>
+                  <span>0.00 (BENIGN)</span>
+                  <span style={{ color: "#f5a623" }}>&tau; = {trace.threshold.toFixed(2)}</span>
+                  <span>1.00 (MALICIOUS)</span>
                 </div>
               </div>
             </div>

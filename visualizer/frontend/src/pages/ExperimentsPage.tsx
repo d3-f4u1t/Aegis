@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { AlertCircle, BarChart2, CheckCircle2, ChevronRight, FileText, Info } from "lucide-react";
-import { ExperimentModelResult, ExperimentReport } from "../types";
+import { BarChart3, CheckCircle, ChevronRight, FileText, Layers, ShieldAlert, Sparkles } from "lucide-react";
+import type { ExperimentModelResult, ExperimentReport } from "../types";
 import { api } from "../services/api";
 
 export const ExperimentsPage: React.FC = () => {
@@ -8,10 +8,7 @@ export const ExperimentsPage: React.FC = () => {
   const [selectedExpId, setSelectedExpId] = useState<string>("exp1_indistribution");
   const [report, setReport] = useState<ExperimentReport | null>(null);
   const [selectedModelKey, setSelectedModelKey] = useState<string>("numpy_mlp");
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
 
-  // Load experiment list
   useEffect(() => {
     let isMounted = true;
     async function loadExps() {
@@ -23,8 +20,7 @@ export const ExperimentsPage: React.FC = () => {
           setSelectedExpId(exps[0].experiment_id);
         }
       } catch (err: any) {
-        if (!isMounted) return;
-        setError("Failed to load experiments list: " + err.message);
+        // non-blocking
       }
     }
     loadExps();
@@ -33,28 +29,21 @@ export const ExperimentsPage: React.FC = () => {
     };
   }, []);
 
-  // Load report when selectedExpId changes
   useEffect(() => {
     let isMounted = true;
     async function loadReport() {
       if (!selectedExpId) return;
-      setLoading(true);
-      setError(null);
       try {
         const r = await api.getExperimentReport(selectedExpId);
         if (!isMounted) return;
         setReport(r);
-        // Default to numpy_mlp if present
         if (r.models["numpy_mlp"]) {
           setSelectedModelKey("numpy_mlp");
         } else {
           setSelectedModelKey(Object.keys(r.models)[0] || "");
         }
       } catch (err: any) {
-        if (!isMounted) return;
-        setError("Failed to load experiment report: " + err.message);
-      } finally {
-        if (isMounted) setLoading(false);
+        // non-blocking
       }
     }
     loadReport();
@@ -67,43 +56,57 @@ export const ExperimentsPage: React.FC = () => {
     report && selectedModelKey ? report.models[selectedModelKey] : null;
 
   return (
-    <div style={{ padding: "1.5rem 2rem", maxWidth: "1350px", margin: "0 auto" }}>
+    <div style={{ padding: "2.5rem", maxWidth: "1440px", margin: "0 auto" }}>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "1.75rem", flexWrap: "wrap", gap: "1rem" }}>
         <div>
-          <h2 style={{ fontSize: "1.5rem", fontWeight: 700, color: "#f8fafc", margin: 0 }}>
-            Empirical Evaluation & Experiment Logs
+          <div className="section-kicker">Empirical Benchmarks</div>
+          <h2 style={{ fontSize: "1.75rem", fontWeight: 800, color: "#ffffff", letterSpacing: "-0.025em", margin: 0 }}>
+            Phase 5 Experimental Logs
           </h2>
-          <p style={{ fontSize: "0.85rem", color: "#94a3b8", margin: 0 }}>
-            Scientific benchmarks across 2,695 behavioral windows and 13 traffic scenarios.
+          <p style={{ fontSize: "0.875rem", color: "#888888", marginTop: "0.25rem" }}>
+            Rigorous evaluation across 2,695 windows, client-isolated partitions, and 13 attack scenarios.
           </p>
         </div>
 
-        {/* Experiment Selector Tabs */}
-        <div style={{ display: "flex", gap: "0.4rem", background: "#0e1420", padding: "0.25rem", borderRadius: "8px", border: "1px solid #1e293b" }}>
+        {/* Experiment Switcher */}
+        <div
+          style={{
+            display: "flex",
+            gap: "0.25rem",
+            background: "#080808",
+            padding: "0.25rem",
+            borderRadius: "6px",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+          }}
+        >
           {experiments.map((exp) => {
             const isSelected = selectedExpId === exp.experiment_id;
+            const label =
+              exp.experiment_id === "exp1_indistribution"
+                ? "Exp 1: In-Distribution"
+                : exp.experiment_id === "exp2_unseen_attacks"
+                ? "Exp 2: Unseen Attacks"
+                : "Exp 3: Unseen Polling";
+
             return (
               <button
                 key={exp.experiment_id}
                 onClick={() => setSelectedExpId(exp.experiment_id)}
                 style={{
                   padding: "0.45rem 0.85rem",
-                  borderRadius: "6px",
+                  borderRadius: "4px",
                   border: "none",
-                  background: isSelected ? "#2563eb" : "transparent",
-                  color: isSelected ? "white" : "#94a3b8",
-                  fontSize: "0.8rem",
-                  fontWeight: isSelected ? 600 : 500,
+                  background: isSelected ? "#ffffff" : "transparent",
+                  color: isSelected ? "#000000" : "#888888",
+                  fontSize: "0.75rem",
+                  fontFamily: "var(--font-mono)",
+                  fontWeight: isSelected ? 700 : 500,
                   cursor: "pointer",
                   transition: "all 0.15s ease",
                 }}
               >
-                {exp.experiment_id === "exp1_indistribution"
-                  ? "Exp 1: In-Distribution"
-                  : exp.experiment_id === "exp2_unseen_attacks"
-                  ? "Exp 2: Unseen Attacks"
-                  : "Exp 3: Unseen Polling"}
+                {label}
               </button>
             );
           })}
@@ -112,47 +115,53 @@ export const ExperimentsPage: React.FC = () => {
 
       {/* Experiment Overview Banner */}
       {report && (
-        <div className="card" style={{ marginBottom: "1.5rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
+        <div className="card" style={{ marginBottom: "1.75rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem", flexWrap: "wrap", gap: "1rem" }}>
             <div>
-              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#f8fafc", margin: 0 }}>
+              <h3 style={{ fontSize: "1.125rem", fontWeight: 700, color: "#ffffff", margin: 0, letterSpacing: "-0.01em" }}>
                 {report.name}
               </h3>
-              <p style={{ fontSize: "0.85rem", color: "#cbd5e1", marginTop: "0.25rem" }}>
+              <p style={{ fontSize: "0.8125rem", color: "#a1a1a1", marginTop: "0.25rem" }}>
                 {report.description}
               </p>
             </div>
             <span className="badge badge-info">{report.split_strategy}</span>
           </div>
 
-          <div style={{ display: "flex", gap: "2rem", marginTop: "0.75rem", fontSize: "0.8rem", color: "#94a3b8" }}>
-            <span><strong>Total Dataset:</strong> {report.dataset_size} windows</span>
-            <span><strong>Train:</strong> {report.n_train}</span>
-            <span><strong>Validation:</strong> {report.n_val}</span>
-            <span><strong>Test:</strong> {report.n_test} ({report.positives_test} attacks)</span>
+          <div style={{ display: "flex", gap: "2.5rem", marginTop: "1rem", paddingTop: "0.85rem", borderTop: "1px solid rgba(255, 255, 255, 0.05)", fontSize: "0.8125rem", fontFamily: "var(--font-mono)", color: "#777777", flexWrap: "wrap" }}>
+            <span>DATASET: <strong style={{ color: "#ededed" }}>{report.dataset_size}</strong></span>
+            <span>TRAIN: <strong style={{ color: "#ededed" }}>{report.n_train}</strong></span>
+            <span>VAL: <strong style={{ color: "#ededed" }}>{report.n_val}</strong></span>
+            <span>TEST: <strong style={{ color: "#ededed" }}>{report.n_test}</strong> ({report.positives_test} attacks)</span>
           </div>
         </div>
       )}
 
-      {/* Model Performance Comparison Table */}
+      {/* Model Benchmark Comparison Table */}
       {report && (
-        <div className="card" style={{ marginBottom: "1.5rem" }}>
-          <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "#f8fafc", marginBottom: "0.75rem" }}>
-            Model Benchmark Comparison
-          </h3>
+        <div className="card" style={{ marginBottom: "1.75rem", padding: "1.25rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+            <h3 style={{ fontSize: "0.9375rem", fontWeight: 700, color: "#ffffff", margin: 0 }}>
+              Model Performance Comparison Matrix
+            </h3>
+            <span style={{ fontSize: "0.75rem", color: "#666666", fontFamily: "var(--font-mono)" }}>
+              CLICK ROW TO INSPECT CONFUSION MATRIX
+            </span>
+          </div>
+
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+            <table className="clean-table">
               <thead>
-                <tr style={{ background: "#0e1420", borderBottom: "1px solid #243042", color: "#94a3b8", textAlign: "left" }}>
-                  <th style={{ padding: "0.6rem 0.75rem" }}>Model</th>
-                  <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Accuracy</th>
-                  <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Precision</th>
-                  <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Recall</th>
-                  <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>F1 Score</th>
-                  <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>FPR</th>
-                  <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>PR-AUC</th>
-                  <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Avg Precision</th>
-                  <th style={{ padding: "0.6rem 0.75rem", textAlign: "right" }}>Latency (ms/sample)</th>
+                <tr>
+                  <th>Model Architecture</th>
+                  <th style={{ textAlign: "right" }}>Accuracy</th>
+                  <th style={{ textAlign: "right" }}>Precision</th>
+                  <th style={{ textAlign: "right" }}>Recall</th>
+                  <th style={{ textAlign: "right" }}>F1 Score</th>
+                  <th style={{ textAlign: "right" }}>FPR</th>
+                  <th style={{ textAlign: "right" }}>PR-AUC</th>
+                  <th style={{ textAlign: "right" }}>Avg Precision</th>
+                  <th style={{ textAlign: "right" }}>Latency (ms)</th>
                 </tr>
               </thead>
               <tbody>
@@ -165,39 +174,24 @@ export const ExperimentsPage: React.FC = () => {
                       key={mKey}
                       onClick={() => setSelectedModelKey(mKey)}
                       style={{
-                        borderBottom: "1px solid #1a2332",
-                        background: isSelected ? "rgba(56, 189, 248, 0.08)" : "transparent",
+                        background: isSelected ? "rgba(0, 240, 255, 0.05)" : "transparent",
                         cursor: "pointer",
                       }}
                     >
-                      <td style={{ padding: "0.6rem 0.75rem", fontWeight: 600, color: isSelected ? "#38bdf8" : "#f1f5f9" }}>
+                      <td style={{ fontWeight: 600, color: isSelected ? "#00f0ff" : "#ededed" }}>
                         {mRes.model_name || mKey}
-                        {isNumPy && <span className="badge badge-normal" style={{ marginLeft: "0.5rem", fontSize: "0.65rem" }}>PRODUCTION</span>}
+                        {isNumPy && <span className="badge badge-normal" style={{ marginLeft: "0.6rem", fontSize: "0.6rem" }}>PRODUCTION</span>}
                       </td>
-                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right", fontFamily: "monospace" }}>
-                        {(mRes.accuracy * 100).toFixed(2)}%
-                      </td>
-                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right", fontFamily: "monospace" }}>
-                        {(mRes.precision * 100).toFixed(2)}%
-                      </td>
-                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right", fontFamily: "monospace" }}>
-                        {(mRes.recall * 100).toFixed(2)}%
-                      </td>
-                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right", fontFamily: "monospace", fontWeight: 600, color: "#38bdf8" }}>
-                        {mRes.f1.toFixed(4)}
-                      </td>
-                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right", fontFamily: "monospace", color: mRes.false_positive_rate > 0.05 ? "#ef4444" : "#4ade80" }}>
+                      <td style={{ textAlign: "right" }}>{(mRes.accuracy * 100).toFixed(2)}%</td>
+                      <td style={{ textAlign: "right" }}>{(mRes.precision * 100).toFixed(2)}%</td>
+                      <td style={{ textAlign: "right" }}>{(mRes.recall * 100).toFixed(2)}%</td>
+                      <td style={{ textAlign: "right", color: "#00f5a0", fontWeight: 700 }}>{mRes.f1.toFixed(4)}</td>
+                      <td style={{ textAlign: "right", color: mRes.false_positive_rate > 0.05 ? "#ff3366" : "#888888" }}>
                         {(mRes.false_positive_rate * 100).toFixed(2)}%
                       </td>
-                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right", fontFamily: "monospace" }}>
-                        {mRes.pr_auc.toFixed(4)}
-                      </td>
-                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right", fontFamily: "monospace" }}>
-                        {mRes.average_precision.toFixed(4)}
-                      </td>
-                      <td style={{ padding: "0.6rem 0.75rem", textAlign: "right", fontFamily: "monospace", color: "#a855f7" }}>
-                        {mRes.inference_latency_ms.toFixed(4)}
-                      </td>
+                      <td style={{ textAlign: "right" }}>{mRes.pr_auc.toFixed(4)}</td>
+                      <td style={{ textAlign: "right" }}>{mRes.average_precision.toFixed(4)}</td>
+                      <td style={{ textAlign: "right", color: "#8b5cf6" }}>{mRes.inference_latency_ms.toFixed(4)}</td>
                     </tr>
                   );
                 })}
@@ -207,67 +201,67 @@ export const ExperimentsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Model Deep-Dive: Confusion Matrix and Per-Scenario Recall */}
+      {/* Confusion Matrix & Scenario Breakdown */}
       {activeModel && (
         <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: "1.5rem" }}>
-          {/* Confusion Matrix Card */}
+          {/* 2x2 Matrix */}
           <div className="card">
-            <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "#f8fafc", marginBottom: "0.5rem" }}>
+            <h3 style={{ fontSize: "0.9375rem", fontWeight: 700, color: "#ffffff", marginBottom: "0.35rem" }}>
               Confusion Matrix: {activeModel.model_name}
             </h3>
-            <p style={{ fontSize: "0.75rem", color: "#94a3b8", marginBottom: "1rem" }}>
-              Evaluated on {report?.n_test} test samples with client-level isolation.
+            <p style={{ fontSize: "0.75rem", color: "#888888", marginBottom: "1.25rem" }}>
+              Evaluated on {report?.n_test} test windows with client-isolated partitioning.
             </p>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-              {/* True Positive */}
-              <div style={{ background: "#0e2017", border: "1px solid #15803d", padding: "1rem", borderRadius: "8px", textAlign: "center" }}>
-                <span style={{ fontSize: "0.75rem", color: "#86efac", fontWeight: 600 }}>True Positives (TP)</span>
-                <p style={{ fontSize: "1.6rem", fontWeight: 800, color: "#22c55e", margin: "0.2rem 0", fontFamily: "monospace" }}>
+              {/* TP */}
+              <div style={{ background: "#05140b", border: "1px solid rgba(0, 245, 160, 0.3)", padding: "1.1rem", borderRadius: "6px", textAlign: "center" }}>
+                <span style={{ fontSize: "0.6875rem", color: "#00f5a0", fontFamily: "var(--font-mono)", fontWeight: 600 }}>TRUE POSITIVE</span>
+                <div style={{ fontSize: "1.875rem", fontWeight: 800, color: "#00f5a0", fontFamily: "var(--font-mono)", margin: "0.2rem 0" }}>
                   {activeModel.tp}
-                </p>
-                <span style={{ fontSize: "0.65rem", color: "#86efac" }}>Attacks correctly flagged</span>
+                </div>
+                <span style={{ fontSize: "0.6875rem", color: "#666666" }}>Attacks detected</span>
               </div>
 
-              {/* False Positive */}
-              <div style={{ background: "#210f13", border: "1px solid #b91c1c", padding: "1rem", borderRadius: "8px", textAlign: "center" }}>
-                <span style={{ fontSize: "0.75rem", color: "#fca5a5", fontWeight: 600 }}>False Positives (FP)</span>
-                <p style={{ fontSize: "1.6rem", fontWeight: 800, color: "#ef4444", margin: "0.2rem 0", fontFamily: "monospace" }}>
+              {/* FP */}
+              <div style={{ background: "#1a060a", border: "1px solid rgba(255, 51, 102, 0.3)", padding: "1.1rem", borderRadius: "6px", textAlign: "center" }}>
+                <span style={{ fontSize: "0.6875rem", color: "#ff3366", fontFamily: "var(--font-mono)", fontWeight: 600 }}>FALSE POSITIVE</span>
+                <div style={{ fontSize: "1.875rem", fontWeight: 800, color: "#ff3366", fontFamily: "var(--font-mono)", margin: "0.2rem 0" }}>
                   {activeModel.fp}
-                </p>
-                <span style={{ fontSize: "0.65rem", color: "#fca5a5" }}>Normal flagged as attack</span>
+                </div>
+                <span style={{ fontSize: "0.6875rem", color: "#666666" }}>False alarms</span>
               </div>
 
-              {/* False Negative */}
-              <div style={{ background: "#21160a", border: "1px solid #b45309", padding: "1rem", borderRadius: "8px", textAlign: "center" }}>
-                <span style={{ fontSize: "0.75rem", color: "#fde047", fontWeight: 600 }}>False Negatives (FN)</span>
-                <p style={{ fontSize: "1.6rem", fontWeight: 800, color: "#f59e0b", margin: "0.2rem 0", fontFamily: "monospace" }}>
+              {/* FN */}
+              <div style={{ background: "#140e04", border: "1px solid rgba(245, 166, 35, 0.3)", padding: "1.1rem", borderRadius: "6px", textAlign: "center" }}>
+                <span style={{ fontSize: "0.6875rem", color: "#f5a623", fontFamily: "var(--font-mono)", fontWeight: 600 }}>FALSE NEGATIVE</span>
+                <div style={{ fontSize: "1.875rem", fontWeight: 800, color: "#f5a623", fontFamily: "var(--font-mono)", margin: "0.2rem 0" }}>
                   {activeModel.fn}
-                </p>
-                <span style={{ fontSize: "0.65rem", color: "#fde047" }}>Attacks missed (blindspot)</span>
+                </div>
+                <span style={{ fontSize: "0.6875rem", color: "#666666" }}>Missed attacks</span>
               </div>
 
-              {/* True Negative */}
-              <div style={{ background: "#0d1b2a", border: "1px solid #1d4ed8", padding: "1rem", borderRadius: "8px", textAlign: "center" }}>
-                <span style={{ fontSize: "0.75rem", color: "#93c5fd", fontWeight: 600 }}>True Negatives (TN)</span>
-                <p style={{ fontSize: "1.6rem", fontWeight: 800, color: "#38bdf8", margin: "0.2rem 0", fontFamily: "monospace" }}>
+              {/* TN */}
+              <div style={{ background: "#05101a", border: "1px solid rgba(0, 240, 255, 0.3)", padding: "1.1rem", borderRadius: "6px", textAlign: "center" }}>
+                <span style={{ fontSize: "0.6875rem", color: "#00f0ff", fontFamily: "var(--font-mono)", fontWeight: 600 }}>TRUE NEGATIVE</span>
+                <div style={{ fontSize: "1.875rem", fontWeight: 800, color: "#00f0ff", fontFamily: "var(--font-mono)", margin: "0.2rem 0" }}>
                   {activeModel.tn}
-                </p>
-                <span style={{ fontSize: "0.65rem", color: "#93c5fd" }}>Normal correctly cleared</span>
+                </div>
+                <span style={{ fontSize: "0.6875rem", color: "#666666" }}>Normal cleared</span>
               </div>
             </div>
           </div>
 
-          {/* Per-Scenario Recall Bars */}
+          {/* Scenario Breakdown */}
           <div className="card">
-            <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "#f8fafc", marginBottom: "0.5rem" }}>
-              Per-Scenario Recall & Detection Breakdown
+            <h3 style={{ fontSize: "0.9375rem", fontWeight: 700, color: "#ffffff", marginBottom: "0.35rem" }}>
+              Per-Scenario Recall Breakdown
             </h3>
-            <p style={{ fontSize: "0.75rem", color: "#94a3b8", marginBottom: "1rem" }}>
-              Recall percentage across individual attack and normal behavior patterns.
+            <p style={{ fontSize: "0.75rem", color: "#888888", marginBottom: "1.25rem" }}>
+              Detection recall across individual traffic generation profiles.
             </p>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", maxHeight: "420px", overflowY: "auto" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem", maxHeight: "420px", overflowY: "auto" }}>
               {Object.entries(activeModel.per_scenario).map(([scenName, scenData]) => {
                 const isAttack = scenName.startsWith("attack");
                 const recallPct = scenData.recall * 100;
@@ -277,32 +271,32 @@ export const ExperimentsPage: React.FC = () => {
                   <div
                     key={scenName}
                     style={{
-                      background: isFailedScraping ? "rgba(239, 68, 68, 0.1)" : "#0e1420",
-                      padding: "0.5rem 0.75rem",
+                      background: isFailedScraping ? "rgba(255, 51, 102, 0.08)" : "#080808",
+                      padding: "0.6rem 0.85rem",
                       borderRadius: "6px",
-                      border: isFailedScraping ? "1px solid #ef4444" : "1px solid #1e293b",
+                      border: isFailedScraping ? "1px solid #ff3366" : "1px solid rgba(255, 255, 255, 0.06)",
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.3rem" }}>
-                      <span style={{ fontSize: "0.8rem", color: "#f1f5f9", fontFamily: "monospace" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.35rem" }}>
+                      <span style={{ fontSize: "0.75rem", color: "#ededed", fontFamily: "var(--font-mono)" }}>
                         {scenName}
                         {isFailedScraping && (
-                          <span className="badge badge-attack" style={{ marginLeft: "0.5rem", fontSize: "0.65rem" }}>
+                          <span className="badge badge-attack" style={{ marginLeft: "0.6rem", fontSize: "0.6rem" }}>
                             CRITICAL FAILURE (0%)
                           </span>
                         )}
                       </span>
-                      <span style={{ fontSize: "0.75rem", fontFamily: "monospace", color: recallPct > 90 ? "#4ade80" : recallPct === 0 ? "#ef4444" : "#f59e0b" }}>
+                      <span style={{ fontSize: "0.75rem", fontFamily: "var(--font-mono)", color: recallPct > 90 ? "#00f5a0" : recallPct === 0 ? "#ff3366" : "#f5a623" }}>
                         {recallPct.toFixed(1)}% ({scenData.tp}/{scenData.tp + scenData.fn})
                       </span>
                     </div>
 
-                    <div style={{ width: "100%", height: "6px", background: "#1e293b", borderRadius: "3px", overflow: "hidden" }}>
+                    <div style={{ width: "100%", height: "4px", background: "#1a1a1a", borderRadius: "2px", overflow: "hidden" }}>
                       <div
                         style={{
                           height: "100%",
                           width: `${recallPct}%`,
-                          background: isFailedScraping ? "#ef4444" : isAttack ? "#38bdf8" : "#10b981",
+                          background: isFailedScraping ? "#ff3366" : isAttack ? "#00f0ff" : "#00f5a0",
                         }}
                       />
                     </div>

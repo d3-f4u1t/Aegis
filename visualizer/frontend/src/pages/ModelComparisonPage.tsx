@@ -1,22 +1,21 @@
 import React, { useEffect, useState } from "react";
 import {
-  CheckCircle,
+  Check,
+  CheckCircle2,
   Cpu,
-  Gauge,
-  HelpCircle,
+  Layers,
   ShieldAlert,
+  X,
   XCircle,
   Zap,
 } from "lucide-react";
-import { ComparisonResponse, TrafficSampleItem } from "../types";
+import type { ComparisonResponse, TrafficSampleItem } from "../types";
 import { api } from "../services/api";
 
 export const ModelComparisonPage: React.FC = () => {
   const [samples, setSamples] = useState<TrafficSampleItem[]>([]);
   const [selectedSampleId, setSelectedSampleId] = useState<string>("");
   const [comparison, setComparison] = useState<ComparisonResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -29,8 +28,7 @@ export const ModelComparisonPage: React.FC = () => {
           setSelectedSampleId(s[0].sample_id);
         }
       } catch (err: any) {
-        if (!isMounted) return;
-        setError("Failed to load traffic samples: " + err.message);
+        // non-blocking
       }
     }
     loadSamples();
@@ -46,8 +44,6 @@ export const ModelComparisonPage: React.FC = () => {
       const s = samples.find((item) => item.sample_id === selectedSampleId);
       if (!s) return;
 
-      setLoading(true);
-      setError(null);
       try {
         const res = await api.compareModels(
           s.raw_features,
@@ -59,10 +55,7 @@ export const ModelComparisonPage: React.FC = () => {
         if (!isMounted) return;
         setComparison(res);
       } catch (err: any) {
-        if (!isMounted) return;
-        setError("Comparison failed: " + err.message);
-      } finally {
-        if (isMounted) setLoading(false);
+        // non-blocking
       }
     }
     runComparison();
@@ -74,31 +67,35 @@ export const ModelComparisonPage: React.FC = () => {
   const activeSample = samples.find((s) => s.sample_id === selectedSampleId);
 
   return (
-    <div style={{ padding: "1.5rem 2rem", maxWidth: "1350px", margin: "0 auto" }}>
+    <div style={{ padding: "2.5rem", maxWidth: "1440px", margin: "0 auto" }}>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "1.75rem", flexWrap: "wrap", gap: "1rem" }}>
         <div>
-          <h2 style={{ fontSize: "1.5rem", fontWeight: 700, color: "#f8fafc", margin: 0 }}>
-            Multi-Model Engine Comparison
+          <div className="section-kicker">Multi-Engine Benchmark</div>
+          <h2 style={{ fontSize: "1.75rem", fontWeight: 800, color: "#ffffff", letterSpacing: "-0.025em", margin: 0 }}>
+            Simultaneous Engine Evaluation
           </h2>
-          <p style={{ fontSize: "0.85rem", color: "#94a3b8", margin: 0 }}>
-            Simultaneous inference benchmark comparing baselines, scalar reference MLP, and vectorized NumPy MLP.
+          <p style={{ fontSize: "0.875rem", color: "#888888", marginTop: "0.25rem" }}>
+            Parallel inference benchmark comparing baselines, scalar reference MLP, and vectorized NumPy MLP.
           </p>
         </div>
 
-        {/* Sample Selector */}
+        {/* Sample Picker */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <label style={{ fontSize: "0.8rem", color: "#94a3b8" }}>Test Traffic Window:</label>
+          <span style={{ fontSize: "0.75rem", color: "#777777", fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>
+            Test Sample:
+          </span>
           <select
             value={selectedSampleId}
             onChange={(e) => setSelectedSampleId(e.target.value)}
             style={{
-              background: "#1e293b",
-              color: "#f8fafc",
-              border: "1px solid #334155",
+              background: "#111111",
+              color: "#ededed",
+              border: "1px solid rgba(255, 255, 255, 0.12)",
               borderRadius: "6px",
-              padding: "0.35rem 0.75rem",
-              fontSize: "0.8rem",
+              padding: "0.4rem 0.85rem",
+              fontSize: "0.75rem",
+              fontFamily: "var(--font-mono)",
               cursor: "pointer",
               minWidth: "280px",
             }}
@@ -112,27 +109,31 @@ export const ModelComparisonPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Selected Sample Information Banner */}
+      {/* Selected Sample Information */}
       {activeSample && (
-        <div className="card" style={{ marginBottom: "1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div className="card" style={{ marginBottom: "1.75rem", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
           <div>
-            <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Tested Sample Window:</span>
-            <h3 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#f8fafc", margin: "0.2rem 0" }}>
+            <span style={{ fontSize: "0.6875rem", color: "#777777", fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>
+              Selected Evaluation Window
+            </span>
+            <h3 style={{ fontSize: "1.125rem", fontWeight: 700, color: "#ffffff", margin: "0.2rem 0", letterSpacing: "-0.01em" }}>
               {activeSample.scenario} &bull; Client: <code className="font-mono">{activeSample.client_ip_hash}</code>
             </h3>
-            <p style={{ fontSize: "0.8rem", color: "#cbd5e1", margin: 0 }}>
+            <p style={{ fontSize: "0.8125rem", color: "#a1a1a1", margin: 0 }}>
               {activeSample.description}
             </p>
           </div>
           <div style={{ textAlign: "right" }}>
-            <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Ground Truth Label:</span>
-            <div>
+            <span style={{ fontSize: "0.6875rem", color: "#777777", fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>
+              Ground Truth
+            </span>
+            <div style={{ marginTop: "0.25rem" }}>
               {activeSample.ground_truth_label === 1 ? (
-                <span className="badge badge-attack" style={{ fontSize: "0.9rem", padding: "0.35rem 0.75rem" }}>
+                <span className="badge badge-attack" style={{ fontSize: "0.8125rem", padding: "0.3rem 0.75rem" }}>
                   ATTACK (1)
                 </span>
               ) : (
-                <span className="badge badge-normal" style={{ fontSize: "0.9rem", padding: "0.35rem 0.75rem" }}>
+                <span className="badge badge-normal" style={{ fontSize: "0.8125rem", padding: "0.3rem 0.75rem" }}>
                   NORMAL (0)
                 </span>
               )}
@@ -141,7 +142,7 @@ export const ModelComparisonPage: React.FC = () => {
         </div>
       )}
 
-      {/* 4 Models Comparison Cards Grid */}
+      {/* 4 Models Comparison Grid */}
       {comparison && (
         <div
           style={{
@@ -153,74 +154,82 @@ export const ModelComparisonPage: React.FC = () => {
         >
           {comparison.results.map((res) => {
             const isAttack = res.prediction === 1;
-            const isMLP = res.engine === "numpy" || res.engine === "scalar";
+            const isNumPy = res.engine === "numpy";
 
             return (
               <div
                 key={res.model_id}
                 className="card"
                 style={{
-                  borderTop: isAttack ? "3px solid #ef4444" : "3px solid #10b981",
+                  borderTop: isAttack ? "2px solid #ff3366" : "2px solid #00f5a0",
                   display: "flex",
                   flexDirection: "column",
                   justifyContent: "space-between",
+                  background: isNumPy ? "#0d1117" : "#080808",
                 }}
               >
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
-                    <span className="badge badge-info" style={{ fontSize: "0.65rem" }}>
+                    <span className="badge badge-neutral" style={{ fontSize: "0.625rem" }}>
                       {res.engine.toUpperCase()}
                     </span>
                     {res.is_correct ? (
-                      <span style={{ display: "flex", alignItems: "center", gap: "0.25rem", color: "#22c55e", fontSize: "0.75rem", fontWeight: 600 }}>
-                        <CheckCircle size={14} /> CORRECT
+                      <span style={{ display: "flex", alignItems: "center", gap: "0.3rem", color: "#00f5a0", fontSize: "0.75rem", fontWeight: 600, fontFamily: "var(--font-mono)" }}>
+                        <Check size={12} /> CORRECT
                       </span>
                     ) : (
-                      <span style={{ display: "flex", alignItems: "center", gap: "0.25rem", color: "#ef4444", fontSize: "0.75rem", fontWeight: 600 }}>
-                        <XCircle size={14} /> INCORRECT
+                      <span style={{ display: "flex", alignItems: "center", gap: "0.3rem", color: "#ff3366", fontSize: "0.75rem", fontWeight: 600, fontFamily: "var(--font-mono)" }}>
+                        <X size={12} /> INCORRECT
                       </span>
                     )}
                   </div>
 
-                  <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "#f8fafc", marginBottom: "0.5rem" }}>
+                  <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "#ffffff", marginBottom: "0.85rem", letterSpacing: "-0.01em" }}>
                     {res.model_name}
                   </h3>
 
-                  <div style={{ background: "#0e1420", padding: "0.85rem", borderRadius: "8px", border: "1px solid #1e293b", marginBottom: "0.75rem" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.3rem" }}>
-                      <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Prediction:</span>
+                  <div style={{ background: "#050505", padding: "0.85rem 1rem", borderRadius: "6px", border: "1px solid rgba(255, 255, 255, 0.06)", marginBottom: "0.85rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.4rem" }}>
+                      <span style={{ fontSize: "0.75rem", color: "#777777" }}>Prediction:</span>
                       <span
                         className={isAttack ? "badge badge-attack" : "badge badge-normal"}
-                        style={{ fontSize: "0.75rem" }}
+                        style={{ fontSize: "0.6875rem" }}
                       >
                         {isAttack ? "ATTACK (1)" : "NORMAL (0)"}
                       </span>
                     </div>
 
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.3rem" }}>
-                      <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Probability P(attack):</span>
-                      <span style={{ fontSize: "0.85rem", fontWeight: 700, fontFamily: "monospace", color: "#38bdf8" }}>
-                        {(res.probability * 100).toFixed(2)}% ({res.probability.toFixed(4)})
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.4rem" }}>
+                      <span style={{ fontSize: "0.75rem", color: "#777777" }}>Probability:</span>
+                      <span style={{ fontSize: "0.875rem", fontWeight: 700, fontFamily: "var(--font-mono)", color: "#00f0ff" }}>
+                        {(res.probability * 100).toFixed(2)}%
                       </span>
                     </div>
 
                     <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Decision Rule:</span>
-                      <span style={{ fontSize: "0.75rem", color: "#64748b", fontFamily: "monospace" }}>
-                        p ≥ {res.threshold.toFixed(2)}
+                      <span style={{ fontSize: "0.75rem", color: "#777777" }}>Decision Rule:</span>
+                      <span style={{ fontSize: "0.75rem", color: "#666666", fontFamily: "var(--font-mono)" }}>
+                        p &ge; {res.threshold.toFixed(2)}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Footer with Latency */}
-                <div style={{ borderTop: "1px solid #1e293b", paddingTop: "0.75rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: "0.75rem", color: "#94a3b8", display: "flex", alignItems: "center", gap: "0.3rem" }}>
-                    <Zap size={13} color="#f59e0b" /> Inference Latency:
+                {/* Footer with Latency and Speedup */}
+                <div style={{ borderTop: "1px solid rgba(255, 255, 255, 0.06)", paddingTop: "0.75rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: "0.75rem", color: "#777777", display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                    <Zap size={12} color="#f5a623" /> Latency:
                   </span>
-                  <span style={{ fontSize: "0.8rem", fontWeight: 600, fontFamily: "monospace", color: "#f8fafc" }}>
-                    {res.latency_ms.toFixed(3)} ms
-                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    {isNumPy && (
+                      <span className="badge badge-normal" style={{ fontSize: "0.6rem" }}>
+                        ~170&times; SPEEDUP
+                      </span>
+                    )}
+                    <span style={{ fontSize: "0.8125rem", fontWeight: 600, fontFamily: "var(--font-mono)", color: "#ffffff" }}>
+                      {res.latency_ms.toFixed(3)} ms
+                    </span>
+                  </div>
                 </div>
               </div>
             );
@@ -230,15 +239,16 @@ export const ModelComparisonPage: React.FC = () => {
 
       {/* Latency & Mathematical Parity Takeaway Card */}
       <div className="card">
-        <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "#f8fafc", marginBottom: "0.5rem" }}>
-          Engine Parity & Vectorization Analysis
+        <div className="section-kicker">Theoretical &amp; Empirical Parity</div>
+        <h3 style={{ fontSize: "1.125rem", fontWeight: 700, color: "#ffffff", margin: "0.2rem 0 0.5rem 0", letterSpacing: "-0.01em" }}>
+          Numerical Equivalence &amp; Vectorization Gains
         </h3>
-        <p style={{ fontSize: "0.85rem", color: "#cbd5e1", lineHeight: 1.6, marginBottom: "0.75rem" }}>
+        <p style={{ fontSize: "0.8125rem", color: "#b5b5b5", lineHeight: 1.6, marginBottom: "0.65rem" }}>
           The Scalar MLP (<code className="font-mono">nn/</code>) and NumPy MLP (<code className="font-mono">nn_numpy/</code>) share
           identical network topology and identical weights. Both models evaluate to the exact same classification prediction
           and probability scores with numerical discrepancy below <strong>10⁻¹¹</strong>.
         </p>
-        <p style={{ fontSize: "0.85rem", color: "#94a3b8", lineHeight: 1.6 }}>
+        <p style={{ fontSize: "0.8125rem", color: "#888888", lineHeight: 1.6 }}>
           However, because the NumPy engine vectorizes layer multiplications using contiguous BLAS matrix operations (<code className="font-mono">Z = X @ W + b</code>),
           it achieves approximately <strong>170× lower inference latency</strong> compared to pure Python object iteration over individual scalar neuron instances.
         </p>
