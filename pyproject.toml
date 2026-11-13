@@ -9,6 +9,6 @@ dependencies = []
 dev = ["pytest>=8"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "visualizer/backend/tests"]
 pythonpath = ["."]
 addopts = "-q"

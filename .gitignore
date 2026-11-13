@@ -11,6 +11,9 @@ venv/
 dist/
 *.so
 
+# Node
+node_modules/
+
 # IDE / editor
 .vscode/
 .idea/
