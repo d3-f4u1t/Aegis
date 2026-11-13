@@ -97,7 +97,7 @@ export const ArchitecturePage: React.FC<ArchitecturePageProps> = ({ modelId }) =
     { color: "#f59e0b", glow: "rgba(245, 158, 11, 0.4)", name: "Input Features", bg: "rgba(245, 158, 11, 0.08)" },
     { color: "#8b5cf6", glow: "rgba(139, 92, 246, 0.4)", name: "Hidden 1 (ReLU)", bg: "rgba(139, 92, 246, 0.08)" },
     { color: "#00f0ff", glow: "rgba(0, 240, 255, 0.4)", name: "Hidden 2 (ReLU)", bg: "rgba(0, 240, 255, 0.08)" },
-    { color: "#ff3366", glow: "rgba(255, 51, 102, 0.4)", name: "Output (Sigmoid)", bg: "rgba(255, 51, 102, 0.08)" },
+    { color: "#ff3366", glow: "rgba(255, 51, 102, 0.4)", name: "Output (Identity Logit)", bg: "rgba(255, 51, 102, 0.08)" },
   ];
 
   // Calculate Neuron Coordinates
@@ -133,7 +133,8 @@ export const ArchitecturePage: React.FC<ArchitecturePageProps> = ({ modelId }) =
 
     const neuronWeights = lp.neurons[nIdx]?.weights || [];
     const neuronBias = lp.biases[nIdx];
-    const act = lIdx === nLayers - 1 ? (arch.output_activation || "sigmoid") : (arch.hidden_activation || "relu");
+    const isOutput = lIdx === nLayers - 1;
+    const act = isOutput ? (arch.output_activation || "identity") : (arch.hidden_activation || "relu");
 
     setSelectedNeuron({
       layerIdx: lIdx,
@@ -141,7 +142,7 @@ export const ArchitecturePage: React.FC<ArchitecturePageProps> = ({ modelId }) =
       bias: neuronBias,
       weights: neuronWeights,
       activation: act.toUpperCase(),
-      name: `Neuron L${lIdx}:#${nIdx}`,
+      name: isOutput ? "Output Node (Logit z)" : `Neuron L${lIdx}:#${nIdx}`,
     });
   };
 
@@ -267,7 +268,7 @@ export const ArchitecturePage: React.FC<ArchitecturePageProps> = ({ modelId }) =
                 const layerTitle = isInput
                   ? "Input Layer"
                   : isOutput
-                  ? "Output Node"
+                  ? "Output (Identity)"
                   : `Hidden L${lIdx}`;
 
                 return (
@@ -428,20 +429,52 @@ export const ArchitecturePage: React.FC<ArchitecturePageProps> = ({ modelId }) =
                             </text>
                           )}
 
-                          {/* Right Output Label */}
+                          {/* Right Output: Identity Logit -> Sigmoid Probability Conversion */}
                           {isOutput && (
-                            <text
-                              x={pos.x + 18}
-                              y={pos.y + 4}
-                              textAnchor="start"
-                              fill="#ff3366"
-                              fontSize={11}
-                              fontFamily="var(--font-mono)"
-                              fontWeight={700}
-                              letterSpacing="0.05em"
-                            >
-                              P(ATTACK)
-                            </text>
+                            <g>
+                              <line
+                                x1={pos.x + 12}
+                                y1={pos.y}
+                                x2={pos.x + 32}
+                                y2={pos.y}
+                                stroke="#ff3366"
+                                strokeWidth={1.5}
+                                strokeDasharray="3 3"
+                              />
+                              <rect
+                                x={pos.x + 36}
+                                y={pos.y - 12}
+                                width={52}
+                                height={24}
+                                rx={4}
+                                fill="#110508"
+                                stroke="#ff3366"
+                                strokeWidth={1}
+                              />
+                              <text
+                                x={pos.x + 62}
+                                y={pos.y + 4}
+                                textAnchor="middle"
+                                fill="#ff3366"
+                                fontSize={10}
+                                fontFamily="var(--font-mono)"
+                                fontWeight={700}
+                              >
+                                &sigma;(z)
+                              </text>
+                              <text
+                                x={pos.x + 98}
+                                y={pos.y + 4}
+                                textAnchor="start"
+                                fill="#ffffff"
+                                fontSize={11}
+                                fontFamily="var(--font-mono)"
+                                fontWeight={700}
+                                letterSpacing="0.04em"
+                              >
+                                P(ATTACK)
+                              </text>
+                            </g>
                           )}
                         </g>
                       );
@@ -481,7 +514,7 @@ export const ArchitecturePage: React.FC<ArchitecturePageProps> = ({ modelId }) =
             </span>
             <span style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
               <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#ff3366", boxShadow: "0 0 6px #ff3366" }} />
-              Output Sigmoid (1)
+              Output Logit + Sigmoid (1)
             </span>
             <span style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
               <span style={{ width: "16px", height: "2px", background: "linear-gradient(90deg, #00f0ff, #8b5cf6)" }} />

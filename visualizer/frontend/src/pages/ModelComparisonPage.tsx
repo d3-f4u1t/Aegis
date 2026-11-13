@@ -244,13 +244,13 @@ export const ModelComparisonPage: React.FC = () => {
           Numerical Equivalence &amp; Vectorization Gains
         </h3>
         <p style={{ fontSize: "0.8125rem", color: "#b5b5b5", lineHeight: 1.6, marginBottom: "0.65rem" }}>
-          The Scalar MLP (<code className="font-mono">nn/</code>) and NumPy MLP (<code className="font-mono">nn_numpy/</code>) share
-          identical network topology and identical weights. Both models evaluate to the exact same classification prediction
-          and probability scores with numerical discrepancy below <strong>10⁻¹¹</strong>.
+          The Scalar reference engine (<code className="font-mono">nn/</code>) and NumPy vectorized engine (<code className="font-mono">nn_numpy/</code>) share
+          verified mathematical parity (&lt; 10⁻¹¹) under identical parameters. In Phase 5, both independent implementations were trained
+          on the 2,695-window dataset under identical configurations, both achieving <strong>99.49% accuracy</strong> and <strong>0.9952 F1</strong>.
         </p>
         <p style={{ fontSize: "0.8125rem", color: "#888888", lineHeight: 1.6 }}>
           However, because the NumPy engine vectorizes layer multiplications using contiguous BLAS matrix operations (<code className="font-mono">Z = X @ W + b</code>),
-          it achieves approximately <strong>170× lower inference latency</strong> compared to pure Python object iteration over individual scalar neuron instances.
+          it achieved a verified <strong>172.9&times; speedup</strong> in batch inference latency (0.00028 ms vs 0.04826 ms/sample) compared to pure Python object iteration over individual scalar neurons.
         </p>
       </div>
     </div>

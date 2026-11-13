@@ -147,15 +147,14 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
               <span className="badge badge-attack">0% RECALL ON NOVEL SCRAPING</span>
             </div>
             <p style={{ color: "#b5b5b5", fontSize: "0.875rem", lineHeight: 1.6, marginBottom: "0.85rem" }}>
-              In Experiment 2 (Unseen Zero-Day Attacks), our supervised neural classifier suffered <strong>0% detection recall</strong> on{" "}
-              <code className="font-mono" style={{ color: "#ff88a3" }}>attack_high_volume_scraping</code>. Because the scraping bot queries valid public URLs,
-              all requests return HTTP 200 OK with zero 4xx/5xx errors and zero auth failures.
-              Having learned during supervised training that attacks manifest through error spikes, the network assigned a probability of{" "}
-              <strong style={{ color: "#ffffff", fontFamily: "var(--font-mono)" }}>p = 0.0001</strong> (normal).
+              In Experiment 2 (Unseen Zero-Day Attacks), our supervised neural classifier suffered <strong>0% detection recall (0/180)</strong> on{" "}
+              <code className="font-mono" style={{ color: "#ff88a3" }}>attack_high_volume_scraping</code>, whereas simple linear baselines (Threshold: 100%, Logistic Regression: 99.4%) flagged it due to raw request volume.
+              Because scraping queries valid public URLs with 200 OK responses, the MLP's nonlinear representations suppressed rate signals in the absence of error codes, assigning a probability of{" "}
+              <strong style={{ color: "#ffffff", fontFamily: "var(--font-mono)" }}>p = 0.0000</strong> (false negative).
             </p>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
               <span style={{ fontSize: "0.8125rem", color: "#888888" }}>
-                <strong>Scientific Implication:</strong> Proves the necessity of transitioning from purely supervised models to Phase 7 Unsupervised Autoencoders.
+                <strong>Verified Finding vs Hypothesis:</strong> 0% recall is an empirical fact; feature suppression is the prevailing mechanistic hypothesis. Proves the necessity of Phase 7 Unsupervised Autoencoders.
               </span>
               <button
                 className="btn btn-secondary"

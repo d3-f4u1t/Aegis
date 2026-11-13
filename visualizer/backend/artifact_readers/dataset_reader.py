@@ -89,12 +89,14 @@ class DatasetReader:
                 feature_names=list(ds.feature_names),
                 description=SCENARIO_DESCRIPTIONS.get(scen, "Curated synthetic traffic sample."),
                 is_failure_case=is_scraping,
-                failure_model="NumPy MLP & Logistic Regression" if is_scraping else None,
+                failure_model="Exp 2 Model (phase5_exp2_unseen_attacks_numpy_mlp)" if is_scraping else None,
                 failure_explanation=(
-                    "Supervised classifiers trained on typical attacks rely heavily on error signals "
-                    "(status_4xx_ratio, auth_failure_count). High-volume scraping queries existing resources "
-                    "with 200 OK responses, causing the MLP to predict p < 0.01 (False Negative, 0% recall). "
-                    "This empirical result proves the necessity of Phase 7 unsupervised anomaly detection."
+                    "In Experiment 2 (Unseen Zero-Day Attacks), when high-volume scraping was held out from training, "
+                    "the model suffered 0% detection recall (predicted p = 0.000000, False Negative). Because scraping "
+                    "retrieves valid public endpoints with HTTP 200 OK and 0% errors, the network relies on error spikes "
+                    "(4xx/5xx/auth) and is blinded by novel zero-error high-rate patterns. In contrast, the Exp 1 model detected "
+                    "it only because scraping was present in its training set. This empirical proof establishes the necessity "
+                    "of Phase 7 Unsupervised Autoencoders."
                     if is_scraping
                     else None
                 ),
